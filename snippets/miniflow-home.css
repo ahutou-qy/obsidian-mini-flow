@@ -1,0 +1,601 @@
+/* Mini Flow Home 看板：隐藏任务行里的标签，只留复选框 + 链接 + 内联字段。
+   仅对 frontmatter 带 cssclasses: miniflow-home 的页面生效，不影响笔记正文/其它 dataview。
+   标签仍写在源 Capture 行里，dataview 查询和年底事件挖掘照常按标签过滤。 */
+
+/* Reading view 下的 dataview 任务列表 */
+.miniflow-home .dataview.list-view-ul a.tag,
+.miniflow-home ul.dataview a.tag {
+  display: none !important;
+}
+
+/* Live Preview / 编辑模式下任务行内的标签胶囊（CodeMirror 把 #tag 渲染为 .cm-hashtag） */
+.miniflow-home .task-list-item a.tag,
+.miniflow-home li[data-task] a.tag,
+.miniflow-home .cm-hashtag {
+  display: none !important;
+}
+
+/* 搁置原因：Capture 行的 [blocked:: 原因] 在看板上渲染成胶囊——隐藏英文 key，
+   值前加「🚧 原因：」前缀，仅在搁置列的任务行生效。 */
+.miniflow-home .inline-field-key[data-dv-key="blocked"] {
+  display: none;
+}
+.miniflow-home .inline-field-key[data-dv-key="blocked"] + .inline-field-value {
+  margin-left: 0.4em;
+  padding: 0.1em 0.55em;
+  border-radius: 1em;
+  font-size: 0.88em;
+  background: var(--background-secondary-alt, rgba(127, 127, 127, 0.18));
+  color: var(--text-muted);
+}
+.miniflow-home .inline-field-key[data-dv-key="blocked"] + .inline-field-value::before {
+  content: "🚧 原因：";
+  color: var(--text-normal);
+}
+.miniflow-home .inline-field-key[data-dv-key="blocked"] + .inline-field-value:empty {
+  display: none;
+}
+
+/* 闪念列表：数据存 flow/ideas-home.txt，由 Home.md dataviewjs 局部渲染。
+   每条 hover / focus-within（Tab 到 🗑）整行灰底高亮，深浅色自适应；同时浮现 📋 📌 🗑 三键。
+   高亮边就取 wrap 内容边（卡片 callout-content 自带 0.4em padding 留白），不做负 margin
+   外扩——负 margin 会把圆角顶进卡片 overflow:hidden / Live Preview 的 CM 组件裁剪区，圆角被裁。 */
+.miniflow-home .miniflow-ideas .miniflow-idea-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4em;
+  padding: 0.12em 0.2em;
+  border-radius: 0.5em;
+  transition: background 0.12s ease;
+}
+.miniflow-home .miniflow-ideas .miniflow-idea-row:hover,
+.miniflow-home .miniflow-ideas .miniflow-idea-row:focus-within {
+  background: rgba(0, 0, 0, 0.055);
+}
+body.theme-dark .miniflow-home .miniflow-ideas .miniflow-idea-row:hover,
+body.theme-dark .miniflow-home .miniflow-ideas .miniflow-idea-row:focus-within {
+  background: rgba(255, 255, 255, 0.08);
+}
+.miniflow-home .miniflow-ideas .miniflow-idea-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/* 闪念三键（📋 复制 / 📌 转任务 / 🗑 删除）的形态与显形策略见下面「卡内统一档」档 5；
+   列表缩进吃档 6，本段不再各写一份（2026-11-19 字体/图标统一）。 */
+
+/* 卡尾提示行的间距（字号与颜色在「卡内统一档」档 4） */
+.miniflow-home .miniflow-ideas .miniflow-ideas-more,
+.miniflow-home .miniflow-proposed .miniflow-proposed-more {
+  margin-top: 0.25em;
+  padding-inline: 0.2em;
+}
+
+/* Home 看板全宽：关掉 readable line width 的窄列（约 700px 居中），铺满视口。
+   仅 cssclasses: miniflow-home 的页生效，左右留响应式边距不贴边。
+   分栏本身靠 columns.css 的 [!cols]，这里只解除行宽限制。 */
+.miniflow-home.markdown-preview-view.is-readable-line-width .markdown-preview-section,
+.miniflow-home.markdown-preview-view .markdown-preview-section {
+  max-width: 100%;
+  padding-inline: clamp(0.75rem, 3vw, 2.5rem);
+}
+.markdown-source-view.mod-cm6.miniflow-home.is-readable-line-width .cm-content,
+.markdown-source-view.mod-cm6.miniflow-home.is-readable-line-width .cm-sizer,
+.markdown-source-view.mod-cm6.miniflow-home .cm-content,
+.markdown-source-view.mod-cm6.miniflow-home .cm-sizer {
+  max-width: 100% !important;
+  padding-inline: clamp(0.75rem, 3vw, 2.5rem);
+}
+
+/* ===== 看板卡片美化：仅本页 [!cols] 的直接子卡片。
+   用 > .callout-content > .callout 精确选 9 张卡片，不碰 dataviewjs 内部
+   renderMarkdown 出来的 [!warning]/[!abstract] 提示块。
+
+   圆角档位在本段覆盖 columns.css 的通用默认（12px）——本机偏好更圆的卡片，
+   所以只动 Home 一处，columns.css 给其它笔记的 [!cols] 留原档。改大改小只动
+   --col-radius 一个数：卡头圆角由它减卡片内边距推出，不必两处同步。 */
+.miniflow-home .callout[data-callout="cols"] {
+  --col-radius: 18px;
+  --col-pad: 0.5em;
+  --col-radius-inner: calc(var(--col-radius) - var(--col-pad)); /* 同心圆角：外圆角 − 卡片内边距 */
+  gap: 14px;
+  margin-block: 0.9em;
+}
+.miniflow-home .callout[data-callout="cols"] > .callout-content > .callout {
+  background: rgba(0, 0, 0, 0.035);
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  border-radius: var(--col-radius, 18px);
+  overflow: hidden;
+  padding: var(--col-pad, 0.5em);
+  box-shadow: var(--shadow-s, 0 1px 3px rgba(0, 0, 0, 0.08));
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.miniflow-home .callout[data-callout="cols"] > .callout-content > .callout:hover {
+  border-color: rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-m, 0 3px 10px rgba(0, 0, 0, 0.14));
+}
+/* 卡片头：卡片内一块四角圆角的灰条（四周留 0.5em 边、不贴边），无底分隔线 */
+.miniflow-home .callout[data-callout="cols"] > .callout-content > .callout > .callout-title {
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: var(--col-radius-inner, 9px);
+  padding: 0.4em 0.9em;
+  margin: 0;
+  color: var(--text-normal);
+}
+.miniflow-home .callout[data-callout="cols"] .callout-title-inner {
+  font-size: 0.92em;
+  font-weight: 600;
+}
+/* 卡片内容区 */
+.miniflow-home .callout[data-callout="cols"] > .callout-content > .callout > .callout-content {
+  padding: 0.55em 0.4em 0.15em;
+}
+.miniflow-home .callout[data-callout="cols"] .callout-content > :first-child { margin-top: 0; }
+.miniflow-home .callout[data-callout="cols"] .callout-content > :last-child { margin-bottom: 0; }
+/* 卡内文字的六档（小标题 / 条目 / 次要灰行 / 卡尾 / 按钮 / 列表）不在本段——
+   2026-11-19 起收进下面「卡内统一档」段，本段只管卡片外形（底色/圆角/卡头/表格）。 */
+/* 购物清单表格：紧凑、全宽 */
+.miniflow-home .callout[data-callout="cols"] .callout-content table {
+  width: 100%;
+  margin: 0;
+  font-size: 0.86em;
+}
+.miniflow-home .callout[data-callout="cols"] .callout-content th,
+.miniflow-home .callout[data-callout="cols"] .callout-content td {
+  padding: 0.25em 0.5em;
+}
+
+/* ===== 统一浅灰打底：卡片用半透明黑/白叠在页面底色上成灰阶（卡头比卡身深一档），
+   不依赖主题 --background-secondary 变量——Minimal 浅色下那组变量接近白、卡头更白发突。
+   浅色用黑半透明、深色用白半透明，深浅自适应。[!now]/[!idea] 等类型仅作语义标记。 */
+body.theme-dark .miniflow-home .callout[data-callout="cols"] > .callout-content > .callout {
+  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+body.theme-dark .miniflow-home .callout[data-callout="cols"] > .callout-content > .callout:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+body.theme-dark .miniflow-home .callout[data-callout="cols"] > .callout-content > .callout > .callout-title {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+/* 卡片头隐藏默认 callout 图标（emoji 已表意），只留标题文字 */
+.miniflow-home .callout[data-callout="cols"] > .callout-content > .callout > .callout-title .callout-icon {
+  display: none;
+}
+
+/* ===== 卡内统一档（2026-11-19）：首行五张卡（🏠 工作事务 / 📋 云效 / 💡 闪念 /
+   ⏳ 规则待复盘 / 🔗 溯源链）的**文字与图标档位单源**。改档位只改这一段。
+
+   为什么收成一段：五张卡分四轮长出来、每轮各写一段专用 CSS，卡级当时只统一了
+   ul/li/h3；后来的云效桶头（strong）、溯源链小标题（h4）、各卡卡尾灰字都绕过那三项
+   各写各的字号 → 字体不齐。修法是**把档位收在这里、各卡专用段里冲突的旧值删掉**，
+   不叠第二层覆盖（两层规则打架时后来人分不清哪层生效）。
+
+   图标口径：状态与分类一直用 emoji（🟢 ⛔ ⚠ 📋 🔁 + 卡头 🏠 💡 ⏳ 🔗），动作按钮
+   原先是单色几何字形（▶ ⧉ ⤴ ✕）；2026-11-19 起动作按钮也交给彩色 emoji
+   （▶️ 📋 📌 🗑），色彩由字形自带——**常态不压 --text-muted**，压了会变灰、
+   把「色彩更突出」这个需求抹掉。hover 语义色仍留着，只对退化字形生效。 */
+
+/* 档 1 · 小标题：小号大写弱化。云效桶头与溯源链「六环全满」已在 Home.md 里改用 h3
+   （不再用 strong / h4），因此都吃这一档，CSS 侧不为它们再各写一份。 */
+.miniflow-home .callout[data-callout="cols"] .callout-content h3 {
+  margin: 0.7em 0 0.2em;
+  font-size: 0.76em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.miniflow-home .callout[data-callout="cols"] .callout-content h3:first-child { margin-top: 0; }
+
+/* 档 2 · 条目：正文吃卡级 1em，**任务/规则名链接加粗**。工作事务卡的标题本就是
+   `**[[...]]**`，另外三卡靠这条对齐。闪念刻意不在选择器里——它是自由文本、不是任务标题。 */
+.miniflow-home .miniflow-proposed .miniflow-proposed-list li > a,
+.miniflow-home .miniflow-yunxiao li a.internal-link,
+.miniflow-home .miniflow-trace li > a {
+  font-weight: var(--bold-weight, 700);
+}
+
+/* 档 3 · 次要灰行：dep 副行 / 溯源链覆盖统计 / 各卡空态 / details summary 同档。 */
+.miniflow-home .miniflow-active .miniflow-active-dep,
+.miniflow-home .miniflow-active .miniflow-active-empty,
+.miniflow-home .miniflow-yunxiao .miniflow-yunxiao-empty,
+.miniflow-home .miniflow-ideas .miniflow-ideas-empty,
+.miniflow-home .miniflow-trace .miniflow-trace-empty,
+.miniflow-home .miniflow-trace .miniflow-trace-cov,
+.miniflow-home .miniflow-yunxiao details > summary,
+.miniflow-home .miniflow-trace details > summary {
+  font-size: 0.92em;
+  color: var(--text-muted);
+}
+.miniflow-home .miniflow-yunxiao details > summary,
+.miniflow-home .miniflow-trace details > summary {
+  cursor: pointer;
+}
+
+/* 档 4 · 卡尾提示：三处「共 N 条 · 显示最新 M 条」+ 工作事务兜底差集行 + 溯源链中心表链接。
+   各自的 margin/padding 留在专用段（那是节奏不是档位）。 */
+.miniflow-home .miniflow-ideas .miniflow-ideas-more,
+.miniflow-home .miniflow-proposed .miniflow-proposed-more,
+.miniflow-home .miniflow-trace .miniflow-trace-more,
+.miniflow-home .miniflow-active .miniflow-active-dep-outside {
+  font-size: 0.9em;
+  color: var(--text-muted);
+}
+
+/* 档 5 · 动作按钮：emoji 字形、0.95em、裸字无边框透明底、hover 淡底。
+   **显形策略两档，形态其余全同**：
+   - 闪念三键（📋 📌 🗑）hover/focus 才显形——每行三颗，常驻会成按钮墙；
+   - 工作事务的 ▶️ **常驻淡显**（.55 → hover/focus 1）——每行只一颗，且它是「在任务目录
+     起 claude 会话」这个功能的唯一入口，藏起来等于没有（2026-11-19 面板定的折中）。
+   键盘 Tab 到也显形（:focus），不只靠鼠标。
+   2026-11-20 起云效卡的 ▶️ 走同一档（常驻淡显）——那是同一功能的第二个入口，
+   显形策略跟着工作事务卡那颗走，别单独另定一档。 */
+.miniflow-home .miniflow-ideas .miniflow-idea-copy,
+.miniflow-home .miniflow-ideas .miniflow-idea-promote,
+.miniflow-home .miniflow-ideas .miniflow-idea-del,
+.miniflow-home .miniflow-active .miniflow-active-cc,
+.miniflow-home .miniflow-yunxiao .miniflow-yunxiao-cc {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.95em;
+  line-height: 1.6;
+  padding: 0 0.25em;
+  border-radius: 0.4em;
+  transition: background 0.12s ease, opacity 0.12s ease;
+}
+.miniflow-home .miniflow-ideas .miniflow-idea-copy,
+.miniflow-home .miniflow-ideas .miniflow-idea-promote,
+.miniflow-home .miniflow-ideas .miniflow-idea-del {
+  opacity: 0;
+  pointer-events: none;
+}
+.miniflow-home .miniflow-ideas .miniflow-idea-row:hover .miniflow-idea-copy,
+.miniflow-home .miniflow-ideas .miniflow-idea-row:hover .miniflow-idea-promote,
+.miniflow-home .miniflow-ideas .miniflow-idea-row:hover .miniflow-idea-del,
+.miniflow-home .miniflow-ideas .miniflow-idea-copy:focus,
+.miniflow-home .miniflow-ideas .miniflow-idea-promote:focus,
+.miniflow-home .miniflow-ideas .miniflow-idea-del:focus {
+  opacity: 0.7;
+  pointer-events: auto;
+}
+.miniflow-home .miniflow-ideas .miniflow-idea-copy:hover,
+.miniflow-home .miniflow-ideas .miniflow-idea-promote:hover,
+.miniflow-home .miniflow-ideas .miniflow-idea-del:hover {
+  opacity: 1;
+  background: var(--background-modifier-hover);
+}
+.miniflow-home .miniflow-active .miniflow-active-cc {
+  align-self: center;
+  opacity: 0.55;
+}
+.miniflow-home .miniflow-active .miniflow-active-row:hover .miniflow-active-cc,
+.miniflow-home .miniflow-active .miniflow-active-cc:focus {
+  opacity: 1;
+}
+.miniflow-home .miniflow-active .miniflow-active-cc:hover {
+  background: var(--background-modifier-hover);
+  outline: none;
+}
+/* 云效卡的 ▶️（2026-11-20）：显形策略与工作事务那颗相同（常驻淡显 .55 → hover/focus 1）。
+   云效条目是普通 li 文本流（不是 .miniflow-active-row 那种 flex 行），没有 align-self
+   可用，所以补一条 vertical-align 让按钮跟行内文字基线对齐。
+   line-height 取 1.4（档 5 那个 1.6 是给 flex 行里的按钮用的）：按钮是行内元素，
+   高度一旦超过 li 的文字行盒就会把每一行撑高几像素——那会连带改掉右栏
+   「自适应填满」的预算、「显示最新 M 条」跟着变。1.4 落在文字行盒之内，不撑行。 */
+.miniflow-home .miniflow-yunxiao .miniflow-yunxiao-cc {
+  opacity: 0.55;
+  vertical-align: middle;
+  line-height: 1.4;
+}
+.miniflow-home .miniflow-yunxiao li:hover .miniflow-yunxiao-cc,
+.miniflow-home .miniflow-yunxiao .miniflow-yunxiao-cc:focus {
+  opacity: 1;
+}
+.miniflow-home .miniflow-yunxiao .miniflow-yunxiao-cc:hover {
+  background: var(--background-modifier-hover);
+  outline: none;
+}
+/* hover 语义色：🗑 破坏性用红、📌 创建类与 ▶️ 启动用强调色、📋 复制用普通文本色。
+   emoji 自带颜色不吃 color，这几条只在字形退化成单色时兜底。 */
+.miniflow-home .miniflow-ideas .miniflow-idea-del:hover { color: var(--text-error); }
+.miniflow-home .miniflow-ideas .miniflow-idea-copy:hover { color: var(--text-normal); }
+.miniflow-home .miniflow-ideas .miniflow-idea-promote:hover,
+.miniflow-home .miniflow-active .miniflow-active-cc:hover,
+.miniflow-home .miniflow-yunxiao .miniflow-yunxiao-cc:hover { color: var(--interactive-accent); }
+
+/* 档 6 · 列表：收紧行距与缩进，减少卡片内空白。各卡专用段不再另写 padding-inline-start。 */
+.miniflow-home .callout[data-callout="cols"] .callout-content ul,
+.miniflow-home .callout[data-callout="cols"] .callout-content .dataview.list-view-ul {
+  margin: 0;
+  padding-inline-start: 1.15em;
+}
+.miniflow-home .callout[data-callout="cols"] .callout-content li {
+  margin: 0.18em 0;
+}
+
+/* ===== 首行两栏卡（2026-11-18 布局；2026-11-19 删 ⛔ 外部依赖卡后重排，同日再互换
+   云效与闪念的位置）：左栏一张（🏠 工作事务），右栏上下四张（📋 云效工作项 / 💡 闪念 /
+   ⏳ 规则待复盘 / 🔗 溯源链）。
+   [!cols] 的模型是「一个直接子 callout = 一栏」（flex），做不到一栏多行；这里把
+   **含 [!proposed] 卡的那个 cols** 改成两列网格，五张卡用显式 grid 位置摆：
+   tasks 占左列跨四行，yunxiao / idea / proposed / trace 依次占右列第 1/2/3/4 行。
+   右栏卡片高度不再靠网格拉伸填满：两张「条目可增减」的卡（闪念 / 待复盘）由插件
+   api.fitHomeCards 按左栏总高分配预算、把条目补到填满（见 flow/CLAUDE.md「右栏
+   「自适应填满」」段），云效 / 溯源链内容固定只占位。
+   :has() 只命中这一个块（Obsidian 运行时支持，obsidian-git 的 styles.css 已在用），
+   其余 [!cols] 仍是 flex。**锚点挑右栏里稳定存在的那张**：2026-11-19 前锚的是已删的
+   extdep，那张一没整段选择器就失配、网格塌回 flex——trace 卡同理要有显式 grid-area，
+   否则 auto-placement 会把它填进删卡腾出的空位、与 DOM 顺序错开。
+   窄窗口退回块流（display:block；.callout-content 是 display:contents，子卡直接按
+   DOM 顺序上下排）：Home.md 里本块的 DOM 顺序刻意排成 工作事务 → 云效 → 闪念 →
+   规则待复盘 → 溯源链，正是窄屏想要的阅读顺序，不用 order 兜。
+   阈值 52em 是视口宽度（CSS 拿不到容器宽），近似原 flex-wrap 的 2×18em 断点。 */
+.miniflow-home .callout[data-callout="cols"]:has(> .callout-content > .callout[data-callout="proposed"]) {
+  display: grid;
+  /* minmax(0,1fr)：长 wikilink / 表格的 min-content 撑不破 50% 列宽（同 flex 版的 min-width:0） */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.miniflow-home .callout[data-callout="cols"]:has(> .callout-content > .callout[data-callout="proposed"]) > .callout-content > .callout[data-callout="tasks"] {
+  grid-area: 1 / 1 / span 4 / span 1;
+}
+.miniflow-home .callout[data-callout="cols"]:has(> .callout-content > .callout[data-callout="proposed"]) > .callout-content > .callout[data-callout="idea"] {
+  grid-area: 2 / 2;
+}
+.miniflow-home .callout[data-callout="cols"]:has(> .callout-content > .callout[data-callout="proposed"]) > .callout-content > .callout[data-callout="yunxiao"] {
+  grid-area: 1 / 2;
+}
+.miniflow-home .callout[data-callout="cols"]:has(> .callout-content > .callout[data-callout="proposed"]) > .callout-content > .callout[data-callout="proposed"] {
+  grid-area: 3 / 2;
+}
+.miniflow-home .callout[data-callout="cols"]:has(> .callout-content > .callout[data-callout="proposed"]) > .callout-content > .callout[data-callout="trace"] {
+  grid-area: 4 / 2;
+}
+@media (max-width: 52em) {
+  .miniflow-home .callout[data-callout="cols"]:has(> .callout-content > .callout[data-callout="proposed"]) {
+    display: block;
+  }
+}
+
+/* 🏠 工作事务卡里的「外部依赖待解」呈现（2026-11-19 并入本卡，原独立 ⛔ 卡已删）：
+   - .miniflow-active-dep：任务行下的灰色副行，**完整显示** dep 文案（缺什么、找谁、期望何时）。
+     文案 30–40 字，藏进 hover 就丢了「找谁」这个 payload，所以不省略、不截断。
+   - .miniflow-active-dep-outside：卡尾兜底差集提示（有 dep 却不在活跃集合里的条数）。
+   两者的字号与颜色在「卡内统一档」档 3 / 档 4，本段只留各自的节奏与换行。
+   根容器 cls 是 `miniflow-active`（Home.md 活跃块的 dv.el）。 */
+.miniflow-home .miniflow-active .miniflow-active-dep {
+  line-height: 1.45;
+  margin: 0.1em 0 0.35em;
+  overflow-wrap: anywhere;
+}
+.miniflow-home .miniflow-active .miniflow-active-dep-outside {
+  margin-top: 0.4em;
+}
+
+/* 🏠 工作事务卡任务行尾的 ▶️ 按钮（2026-11-19）：在该任务目录起一个全新 claude 会话。
+   - .miniflow-active-row / .miniflow-active-body：Home.md 的 render() 把 renderMarkdown 的
+     异步填充关进 body，▶️ 与 dep 副行、子列表作为兄弟节点挂 row/li —— 顺序因此确定
+     （标题行 → 副行 → 子列表），不依赖 renderMarkdown 的填充时机。
+   - body 用 flex: 0 1 auto：按钮紧跟标题**后方**（本需求的字面位置），标题过长时收缩换行
+     （min-width: 0 是 flex 子项收缩的前提），不把按钮顶到行外。
+   - 按钮形态（emoji / 0.95em / 无边框 / 常驻淡显 .55→1）在「卡内统一档」档 5，与闪念三键
+     同款；本段不再写第二份。 */
+.miniflow-home .miniflow-active .miniflow-active-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45em;
+}
+.miniflow-home .miniflow-active .miniflow-active-body {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* 云效工作项分桶：
+   - bucket-warn（⚠ MF 已 finish · 云效待验证）：黄色背景，是用户核心提醒场景。
+   - bucket-info（⚠ 云效已结 / 📋 未物化）：桶头标注，无高亮，避免视觉过载。
+   - bucket（🟢 活跃）：默认无背景。
+   节点结构：miniflow-yunxiao > [h3 需求/缺陷] > div.bucket-xxx > h3 桶头 + ul > li
+   （桶头 2026-11-19 由 strong 改 h3，吃「卡内统一档」档 1，与类目小标题同档）。
+   miniflow-home 是 Home.md 顶部的 cssclasses，限定到本卡，不污染全局。 */
+.miniflow-home .miniflow-yunxiao .miniflow-yunxiao-bucket-warn {
+  background: rgba(255, 196, 0, 0.12);
+  border-left: 3px solid rgba(255, 152, 0, 0.6);
+  border-radius: 6px;
+  padding: 0.4em 0.6em;
+  margin: 0.3em 0;
+}
+.miniflow-home .miniflow-yunxiao .miniflow-yunxiao-bucket-info {
+  padding: 0.2em 0;
+  margin: 0.2em 0;
+}
+.miniflow-home .miniflow-yunxiao .miniflow-yunxiao-bucket {
+  padding: 0.2em 0;
+}
+
+/* ⏳ 规则待复盘卡（Home 首行右栏第四张卡，dataviewjs 块）：
+   列表形式（规则名 + 领域），显示条数按卡片的可用高度**自适应**（插件 api.fitHomeCards：
+   按左栏工作事务卡的总高给右栏分配预算，条数不足时卡尾给一行灰字提示
+   「共 N 条 · 显示最新 M 条」）——**没有展开开关**，全量去源文件看。
+   下方只调列表项的换行与间距。 */
+.miniflow-home .miniflow-proposed .miniflow-proposed-list li {
+  overflow-wrap: anywhere; /* 长规则名就地换行，不撑破卡片 */
+}
+
+/* qy sync 卡（Home.md 的 miniflow-qy-sync 代码块，由 miniflow 插件渲染）：
+   日志动辄几百行，卡面只留「头部 / 本次发布 / 需关注 / 汇总」，完整日志折进 details。
+   卡片形态沿用本文件「看板卡片美化」那套：半透明灰底 + 圆角 + 细边。 */
+.miniflow-home .miniflow-qy-sync {
+  background: rgba(0, 0, 0, 0.035);
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  border-radius: 18px;
+  padding: 0.6em 0.9em 0.5em;
+  margin-block: 0.6em;
+  font-size: 0.9em;
+  line-height: 1.5;
+}
+body.theme-dark .miniflow-home .miniflow-qy-sync {
+  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+.miniflow-home .miniflow-qy-sync-head strong { font-size: 1.02em; }
+/* 启用功能 / 汇总 / 日志路径：弱化成灰字，别跟告警抢视线 */
+.miniflow-home .miniflow-qy-sync-features,
+.miniflow-home .miniflow-qy-sync-summary {
+  color: var(--text-muted);
+  font-size: 0.94em;
+  margin-top: 0.15em;
+}
+.miniflow-home .miniflow-qy-sync-logpath {
+  color: var(--text-muted);
+  font-size: 0.82em;
+  margin: 0.35em 0 0;
+  word-break: break-all;
+}
+/* 本次发布 / PR */
+.miniflow-home .miniflow-qy-sync-actions-title {
+  font-weight: 600;
+  margin-top: 0.5em;
+}
+/* PR 段回退来源后缀（「来自 … 那轮；本轮未跑 work-pr」）：弱化，不与标题抢视线 */
+.miniflow-home .miniflow-qy-sync-actions-note {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 0.9em;
+}
+.miniflow-home .miniflow-qy-sync-action { margin: 0.15em 0; }
+.miniflow-home .miniflow-qy-sync-action-tag { color: var(--text-muted); }
+/* 需关注：黄色左边条的告警块；error 级（[✗]）换红 */
+.miniflow-home .miniflow-qy-sync-warns {
+  margin: 0.5em 0;
+  padding: 0.35em 0.6em;
+  border-left: 3px solid rgba(255, 152, 0, 0.6);
+  background: rgba(255, 196, 0, 0.10);
+  border-radius: 6px;
+}
+.miniflow-home .miniflow-qy-sync-warn.is-error {
+  border-left-color: rgba(255, 80, 80, 0.7);
+  background: rgba(255, 80, 80, 0.10);
+}
+.miniflow-home .miniflow-qy-sync-warns-title { font-weight: 600; }
+.miniflow-home .miniflow-qy-sync-count,
+.miniflow-home .miniflow-qy-sync-warn-count {
+  color: var(--text-muted);
+  font-weight: 400;
+  margin-left: 0.35em;
+  font-size: 0.9em;
+}
+.miniflow-home .miniflow-qy-sync-warn { margin: 0.12em 0; }
+/* 完整日志：默认收起，展开后限高可滚 */
+.miniflow-home .miniflow-qy-sync-details { margin-top: 0.4em; }
+.miniflow-home .miniflow-qy-sync-details > summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.88em;
+}
+.miniflow-home .miniflow-qy-sync-log {
+  font-size: 0.76em;
+  line-height: 1.35;
+  max-height: 22em;
+  overflow: auto;
+  margin: 0.3em 0 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* 溯源链卡（Home.md 的 dataviewjs 块，数据源 output/trace-chain.json）：
+   卡面只放「覆盖统计 + 缺口排行 + 六环全满的链 + 中心表链接」，全量表去 output/溯源链聚合表.md。
+   只管版式，数据与渲染逻辑在 Home.md 块内。字号/颜色/缩进/小标题全在「卡内统一档」：
+   覆盖统计吃档 3、中心表链接吃档 4、列表吃档 6、「六环全满」2026-11-19 由 h4 改 h3 吃档 1。 */
+.miniflow-home .miniflow-trace p { margin-block: 0.2em; }
+.miniflow-home .miniflow-trace .miniflow-trace-cov {
+  overflow-wrap: anywhere; /* 长需求编号/长任务名就地换行，不撑破窄栏 */
+  margin-block: 0.15em;
+}
+.miniflow-home .miniflow-trace li { overflow-wrap: anywhere; }
+.miniflow-home .miniflow-trace .miniflow-trace-more {
+  margin-top: 0.4em;
+}
+
+/* ================= 插件命令的输入 / 选择弹框 =================
+   quickAddApi 桩（miniflow/main.js 的 InputPromptModal / SuggesterModal）用的 class。
+   QuickAdd 原生 prompt 自带样式、桩没有——不补这段，Mod+I 弹出来就是裸 input，
+   看着像「样式丢了」。颜色一律走 Obsidian 主题变量，浅深色主题自动跟随。 */
+.miniflow-prompt-msg {
+  font-weight: 600;
+  margin-bottom: 0.6em;
+}
+.miniflow-prompt-input,
+.miniflow-suggester-filter {
+  width: 100%;
+  padding: 0.5em 0.7em;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-medium);
+}
+.miniflow-prompt-input:focus,
+.miniflow-suggester-filter:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+}
+.miniflow-prompt-row {
+  display: flex;
+  gap: 0.6em;
+  justify-content: flex-end;
+  margin-top: 0.9em;
+}
+.miniflow-prompt-row button {
+  padding: 0.35em 1em;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  cursor: pointer;
+}
+.miniflow-prompt-row button:not(.mod-muted):hover {
+  background: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+.miniflow-suggester-list {
+  margin-top: 0.6em;
+  max-height: 50vh;
+  overflow-y: auto;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+}
+.miniflow-suggester-item {
+  padding: 0.4em 0.7em;
+  cursor: pointer;
+}
+.miniflow-suggester-item:hover {
+  background: var(--background-modifier-hover);
+}
+.miniflow-suggester-item.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+.miniflow-suggester-empty {
+  padding: 0.5em 0.7em;
+  color: var(--text-muted);
+}
+
+/* ---------- 开源包 Home 模板：首行网格只有三张卡 ----------
+   上游完整版右栏是 云效 / 闪念 / 待复盘 / 溯源链 四张，grid-area 按四行排。
+   开源包裁掉了云效与溯源链两张，右栏只剩两张 → 左栏跨 2 行、右栏两行。
+   用 :not(:has(...)) 提高特异性压过上面的四行版，不改原段（两边共用一份 CSS）。 */
+.miniflow-home .callout[data-callout="cols"]:has(> .callout-content > .callout[data-callout="proposed"]):not(:has(> .callout-content > .callout[data-callout="yunxiao"])) {
+  grid-template-rows: auto auto;
+}
+.miniflow-home .callout[data-callout="cols"]:has(> .callout-content > .callout[data-callout="proposed"]):not(:has(> .callout-content > .callout[data-callout="yunxiao"])) > .callout-content > .callout[data-callout="tasks"] {
+  grid-area: 1 / 1 / span 2 / span 1;
+}
+.miniflow-home .callout[data-callout="cols"]:has(> .callout-content > .callout[data-callout="proposed"]):not(:has(> .callout-content > .callout[data-callout="yunxiao"])) > .callout-content > .callout[data-callout="idea"] {
+  grid-area: 1 / 2;
+}
+.miniflow-home .callout[data-callout="cols"]:has(> .callout-content > .callout[data-callout="proposed"]):not(:has(> .callout-content > .callout[data-callout="yunxiao"])) > .callout-content > .callout[data-callout="proposed"] {
+  grid-area: 2 / 2;
+}

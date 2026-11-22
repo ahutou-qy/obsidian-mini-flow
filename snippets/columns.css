@@ -1,0 +1,49 @@
+/* 笔记内分栏：外层 [!cols] callout 当纯布局容器（透明底、无标题），
+   里面每个嵌套 callout 是一栏，等宽、窗口拉窄自动上下堆叠。
+
+   关键机制（照 MCL 验证过的写法）：flex 容器设在外层 callout 上，
+   .callout-content 用 display:contents 透传，子 callout 成为 flex item。
+
+   语法（坑在空行）：子 callout 用 >> 开头；子 callout 之间的空行只写单 `>`，
+   写成 `>>` 会把子 callout 包进同一层 blockquote，flex 选不中 → 竖排。
+   > [!cols]
+   >
+   >> [!note] 左栏
+   >> 内容…
+   >
+   >> [!note] 右栏
+   >> 内容…
+
+   不要色块：子 callout 用 Minimal 主题的 [!blank]。
+   栏宽/堆叠阈值：改下面 --col-min-width。 */
+
+.callout[data-callout="cols"] {
+  --col-min-width: 18em;
+  --col-gap: 1em;
+  --col-radius: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--col-gap);
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0.75em 0;
+  clear: both;
+}
+.callout[data-callout="cols"] > .callout-title {
+  display: none;
+}
+.callout[data-callout="cols"] > .callout-content {
+  display: contents;
+  padding: 0;
+}
+/* .callout-content 透传后，其直接子元素（子 callout 是 div.callout）成为 flex item */
+.callout[data-callout="cols"] > .callout-content > * {
+  flex: 1 1 var(--col-min-width);
+  margin: 0;
+  min-width: 0;
+}
+/* 子 callout 卡片统一圆角（[!blank] 无框，圆角不可见、无副作用） */
+.callout[data-callout="cols"] .callout {
+  border-radius: var(--col-radius);
+}

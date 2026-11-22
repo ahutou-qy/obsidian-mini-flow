@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "comment": "Mini Flow 共享仓挂载表——install.ps1（Windows）与 install.sh（macOS）共用同一份判据，改挂载点只改这里。vault = vault 内相对路径，shared = 共享仓内相对路径，type=dir 用 junction/symlink，type=file 用 symlink（无权限则走拷贝落地退路）。",
+  "mounts": [
+    {
+      "id": 1,
+      "vault": ".obsidian/plugins/miniflow",
+      "shared": "plugin",
+      "type": "dir",
+      "note": "插件整目录（决策 5）。data.json 是逐机器记账文件，不进共享仓 git。"
+    },
+    {
+      "id": 2,
+      "vault": "flow/scripts/quickadd/mini",
+      "shared": "scripts/quickadd/mini",
+      "type": "dir",
+      "note": "写面与判据单源全在此（~69 文件，含 17 个 .test.js）。"
+    },
+    {
+      "id": 3,
+      "vault": "flow/scripts/mvp",
+      "shared": "scripts/mvp",
+      "type": "dir",
+      "note": "CLI 面（mf.js / agent-capture.js 等），绑 Claude Code，见 README「边界」段。"
+    },
+    {
+      "id": 4,
+      "vault": "flow/templates/task",
+      "shared": "templates/task",
+      "type": "dir",
+      "note": "只抽 templates/task 这一层——work 业务模板留在 vault。"
+    },
+    {
+      "id": 5,
+      "vault": ".obsidian/snippets/miniflow-home.css",
+      "shared": "snippets/miniflow-home.css",
+      "type": "file",
+      "note": "单文件挂载（整目录决策的例外）。"
+    },
+    {
+      "id": 6,
+      "vault": "flow/CLAUDE.md",
+      "shared": "docs/flow-CLAUDE.md",
+      "type": "file",
+      "note": "Mini Flow 实现契约。移出 vault 跟踪后，vault 侧 git log 查不到其变更——已知代价。"
+    },
+    {
+      "id": 7,
+      "vault": "flow/README.md",
+      "shared": "docs/flow-README.md",
+      "type": "file",
+      "note": "流程与命令表。移出 vault 跟踪后，vault 侧 git log 查不到其变更——已知代价。"
+    }
+  ],
+  "config": {
+    "comment": "配置当前**不**挂载：共享仓收 example，各 vault 留自己的真文件并继续跟踪（方案 §五 git 边界）。install 的 --verify 会比对两者是否一致，不一致即报漂移。",
+    "shared": "config/miniflow.json.example",
+    "vault": "flow/config/miniflow.json"
+  }
+}

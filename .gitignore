@@ -1,0 +1,18 @@
+# 本仓忽略清单（与 vault 仓的 .gitignore 是两套，各管各的）
+
+# 插件逐机器记账文件：已消费 id 簿记、applied-id 簿记、fillable 登记。
+# 它是运行时派生数据，进 git 只会让每次开关插件都产生 diff。插件自动写，不要手动改。
+plugin/data.json
+plugin/data*.json
+
+# 本机定位文件：安装脚本写，指向「这台机器的 vault 在哪」。逐机器一份，不跟着 git 走。
+.miniflow-local.json
+
+# 脚本产生的日志
+*.log
+
+# node 依赖与编辑器杂项（本仓当前无 npm 依赖，留着防将来）
+node_modules/
+.DS_Store
+Thumbs.db
+*.swp

@@ -1,0 +1,24 @@
+{
+  "i18n": {
+    "locale": "zh"
+  },
+  "modules": {
+    "yunxiao": true,
+    "indexMaintenance": true,
+    "requireShim": true,
+    "tabTitle": true,
+    "homeCards": true,
+    "launchClaude": true
+  },
+  "behavior": {
+    "indexDebounceMs": 400,
+    "titleDebounceMs": 120,
+    "drainDebounceMs": 800,
+    "qyCardFocusDebounceMs": 500,
+    "progressSoftLimit": 5,
+    "maxFilenameLength": 30,
+    "copyPathOnCapture": true,
+    "deliveryDomains": [],
+    "deliveryExcludeDomains": []
+  }
+}

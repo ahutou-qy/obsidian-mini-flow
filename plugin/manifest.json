@@ -1,0 +1,10 @@
+{
+  "id": "miniflow",
+  "name": "Mini Flow",
+  "version": "1.4.0",
+  "minAppVersion": "1.4.0",
+  "description": "以 Markdown 为唯一存储的任务系统：folder 任务 README 的文件索引自动维护、任务 tab 显示任务名、19 个自带命令（不依赖 QuickAdd）、Home 看板取数 api、设置页把功能开关 / 行为参数 / 交付口径 / 路径写进 vault 内的 flow/config/miniflow.json。",
+  "author": "qy",
+  "license": "MIT",
+  "isDesktopOnly": false
+}

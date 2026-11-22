@@ -1,0 +1,83 @@
+{
+  "_comment": "Mini Flow 中文文案真源。key 是语义路径 <文件/模块>.<用途>，值是界面文案。改这里即改界面文字（改完 reload 插件或重开弹框）。带变量的模板不抽——保持在代码里做字符串拼接，免得把插值逻辑搬进 JSON。",
+  "ui": {
+    "parentTopic": "父主题",
+    "parentTopicHint": "选根主题,或不选",
+    "childTopic": "子主题",
+    "childTopicHint": "在所选父主题下选子,或不选(默认用父)",
+    "pickRootHint": "（先选父主题）",
+    "noChildHint": "（该主题无子级）"
+  },
+  "taskSearch": {
+    "empty": "未找到任何任务（Capture 行为空）"
+  },
+  "common": {
+    "taskName": "任务名",
+    "status": "状态",
+    "noTopicsHint": "（暂无主题，先用 Topic 命令建）",
+    "noDomains": "未找到任何领域（flow/data/domains/<域>/rules/），先建领域目录",
+    "cancelledEmpty": "已取消：空内容不写入"
+  },
+  "taskCapture": {
+    "heading": "新建任务",
+    "emptyTitle": "任务名为空，无法创建",
+    "domainNotLoaded": "领域数据未加载，无法创建"
+  },
+  "taskEdit": {
+    "heading": "编辑任务",
+    "notOnCaptureLine": "把光标放在 Capture 行上，或打开任务 README 后再执行编辑",
+    "captureLineNotFound": "找不到对应的 Capture 行（可能已被移动或删除）",
+    "notStandardCaptureLine": "该行不是标准 Capture 行，无法编辑",
+    "active": "活跃",
+    "finishReopenPrefix": "已完成 · 重开为："
+  },
+  "ruleCapture": {
+    "needTaskFile": "请先打开任务文件或 folder README，再沉淀规则",
+    "emptyTitle": "标题为空，未创建规则",
+    "shortTitleHint": "规则短标题（用作文件名，≤30字）",
+    "statementHint": "一句话规则陈述（可留空，稍后在笔记里写）",
+    "tagsHint": "子方向 tag（可选，逗号分隔，如 上报,异步）",
+    "supersedeHint": "supersede 旧规则（可选，逗号分隔 vault 路径，如 flow/data/domains/work7/rules/foo）"
+  },
+  "ruleValidate": {
+    "needTaskFile": "请先打开任务文件或 folder README，再登记验证规则",
+    "evidenceHint": "一句话实证（这条规则在当前任务上怎么被验证）"
+  },
+  "rulePromote": {
+    "needRuleFile": "请先打开一条规则文件（type: rule），再走 Promote",
+    "alreadyConfirmed": "规则已是 confirmed，不重复晋级",
+    "isDeprecated": "规则已 deprecated，不能手动晋级",
+    "reasonHint": "晋级理由，一句话，落地 ## 变更 段"
+  },
+  "ruleDeprecate": {
+    "needRuleFile": "请先打开一条规则文件（type: rule），再走 Deprecate",
+    "alreadyDeprecated": "规则已是 deprecated，不重复标记",
+    "reasonHint": "废弃理由，一句话",
+    "supersededByHint": "superseded_by 新规则路径（可选，留空 = 单纯否决）"
+  },
+  "topic": {
+    "emptyName": "主题名为空，未创建",
+    "invalidId": "主题名无法生成合法 id，未创建",
+    "heading": "新建长期主题",
+    "definitionHint": "主题定义（三段）"
+  },
+  "taskDelete": {
+    "needCaptureLineOrFile": "请先打开任务 Capture 行或任务文件",
+    "notATaskFile": "当前文件不是 Mini Flow 任务文件，且当前行不是 Capture 行",
+    "lineIndexOutOfRange": "当前行索引越界，已跳过",
+    "notCaptureLine": "当前行不是 Capture 行，已跳过"
+  },
+  "taskFinish": {
+    "noTarget": "把光标放在月度 Capture 行上，或打开任务 README 后再执行",
+    "notLine": "该行不是标准 Capture 行",
+    "already": "任务已完成（#finish）；要重开用 Task Edit 把状态改回 Active",
+    "cancelled": "已取消，未推进任务状态"
+  },
+  "progressCheckin": {
+    "needContext": "打开任务 README，或把光标放在月度 Capture 行上再记进展",
+    "prompt": "进展（一行，记进 ## 进展；Esc 取消）"
+  },
+  "ideaCapture": {
+    "prompt": "闪念（Esc 取消）"
+  }
+}
