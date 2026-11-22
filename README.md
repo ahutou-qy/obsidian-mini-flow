@@ -1,5 +1,7 @@
 # Mini Flow
 
+> English: [README.en.md](README.en.md)
+
 **以 Markdown 为唯一存储的 Obsidian 任务系统。** 没有数据库、没有云端、没有私有格式——
 任务就是文件夹，状态就是文本行，里程碑就是 frontmatter。Obsidian 关掉、换机、十年后，
 你的任务仍然是一堆能读的 md。
