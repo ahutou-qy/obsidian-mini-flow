@@ -2,23 +2,20 @@
 // Mini Flow - 任务名推断核心（Obsidian 与 CLI 共用）
 //
 // 极简匹配：nameLower.includes(keywordLower) 单向 substring。
-// 不引停用词表、不引 jieba；work7/10 域名 + topic.auto_keywords 全
-// 是用户/维护者手写的小词典，substring 命中已够，且无"加跑步功能 ≠ fitness"
+// 不引停用词表、不引 jieba；work7/10 域名等是用户/维护者手写的小词典，
+// substring 命中已够，且无"加跑步功能 ≠ fitness"
 // 这类假阳性损耗。后续若 capture 历史显示命中率长期偏低再评估切词。
 //
 // 与 _workflow.js 的 I/O 角色解耦：本文件只吃已经序列化好的
-// domainChoices / topicChoices 数组（来自 listDomainChoices /
-// listTopicChoices），不读 vault。_workflow.js 透传 flow.json 的
-// keywords 字段、topic.js 序列化时已写 auto_keywords——调用方负责
-// 把数据喂进来。
+// `domainChoices` 数组（来自 listDomainChoices），不读 vault。_workflow.js
+// 透传 flow.json 的 `keywords` 字段——调用方负责把数据喂进来。
 //
-// 字段命名：domain 侧关键词锁 `keywords`（区别 topic 侧 `auto_keywords`）。
+// 字段命名：domain 侧关键词锁 `keywords`。
 // 状态机：domain 命中按 work=true 优先；同 work 取 hit 数多者；
 // 同 hit 数按原顺序（与 listDomainChoices 的排序一致）。
 //
-// topic 不再做任务名自动召回（2026-09-14 取消 capture 入口的推断链路）；
-// topic 关联走用户手动点选 chip，字段 `auto_keywords` / `auto_patterns`
-// 仍由 topic 卡 dataviewjs 聚合（另一条管道）使用，前端不消费。
+// 2026-11-23 砍 topic：推断只吃 domain。原 topic 侧 auto_keywords /
+// auto_patterns 与 listTopicChoices 的说明已随 topic 轴删除。
 // ==============================================
 
 // 命中：keyword（已 lowercase）出现在 nameLower 中。

@@ -78,15 +78,12 @@ module.exports = async ({ app, quickAddApi }) => {
   const renameTarget = rename.resolveTargetFromLink(app, parsed.linkTarget, captured.file);
   const tasksDir = renameTarget ? task.tasksDirForActiveFile(renameTarget.file) : null;
 
-  // 主题关联只存 README frontmatter topic 标量（2026-09-14 起一任务一 topic），不动月度 Capture 行（单源）。
-  const topicChoices = await workflow.listTopicChoices(vault);
-  let initialTopic = "";
+  // 2026-11-23 砍 topic：不再读 listTopicChoices / getTopic，任务不再有主题字段。
   let initialDomain = "";
   if (renameTarget) {
     const readmeRaw = await vault.read(renameTarget.file);
     const fmMatch = yaml.FRONTMATTER_RE.exec(readmeRaw);
     if (fmMatch) {
-      initialTopic = yaml.getTopic(fmMatch[1]);
       // 以 README frontmatter domain 为权威；老月度行残留的 #domain/x 仅作兜底
       // （2026-11-16 起新 capture 行不再打该标签）。
       initialDomain = yaml.getDomain(fmMatch[1]) || parsed.domain || "";
@@ -99,7 +96,6 @@ module.exports = async ({ app, quickAddApi }) => {
     // statusInitial 记 modal-open 时磁盘上的原始态，点保存时用于判断是否变更。
     currentStatus: parsed.status || "",
     statusInitial: parsed.status || "",
-    topic: initialTopic,
   };
 
   // 持有 modal 引用，onSubmit 末尾统一调 close()——对齐 task-capture.js「submit 只触发
@@ -107,7 +103,6 @@ module.exports = async ({ app, quickAddApi }) => {
   // close() 与 Notice 被 fire-and-forget 拆散。
   const modal = new EditModal(app, {
     state,
-    topicChoices,
     ui,
     STATUSES,
     onSubmit: async () => {
@@ -132,22 +127,9 @@ module.exports = async ({ app, quickAddApi }) => {
       // 切档不写 README milestones（append-only），历史 finish milestone 保留；
       // finish → active 的**重开**要留痕，见下面 appendMilestone 那段。
       const statusChanged = state.currentStatus !== state.statusInitial;
-      // 主题关联写回 README frontmatter（appendMilestone 已 modify 过一次，这里重读再写，
-      // 顺序不冲突——milestones 与 topic 是两个独立字段，setTopic 只切 topic 段）。
-      if (renameTarget) {
-        const readmeRaw = await vault.read(renameTarget.file);
-        const fmMatch = yaml.FRONTMATTER_RE.exec(readmeRaw);
-        if (fmMatch) {
-          const nextTopic = yaml.setTopic(fmMatch[1], state.topic);
-          if (nextTopic !== fmMatch[1]) {
-            // setTopic 返回 body 可能不带尾换行；拼接 --- 闭合前先压扁尾随换行再加一个，
-            // 避免吞闭合标记变 "topic: x---" 同行。单测：_yaml.test.js 用例 11。
-            const fmBody = `\n${nextTopic}\n`.replace(/\n+$/, "");
-            const next = readmeRaw.replace(readmeRaw.match(yaml.FRONTMATTER_RE)[0], `---\n${fmBody}\n---`);
-            await vault.modify(renameTarget.file, next);
-          }
-        }
-      }
+      // 阶段一「停写」(2026-11-23,砍 topic):保存时不再写回 frontmatter `topic:`。
+      // 2026-11-23 砍 topic：原 setTopic 写回分支已删（UI chip 与 _yaml topic 原语都没了）。
+      // (历史 `topic:` 字段由阶段三存量迁移统一删除,本阶段不碰存量。)
       // 月度 Capture 行：#status 在点「保存」时落盘。against fresh workingLines。
       let lineDirty = false;
       if (statusChanged && state.currentStatus) {
@@ -175,10 +157,9 @@ module.exports = async ({ app, quickAddApi }) => {
         });
       }
       // 保存成功通知：仅当确实改了字段才弹。
-      const topicChanged = (state.topic || "") !== (initialTopic || "");
+      // 阶段一「停写」(2026-11-23,砍 topic):不再有「主题」变更项。
       const parts = [];
       if (titleChanged) parts.push("标题");
-      if (topicChanged) parts.push("主题");
       if (statusChanged) parts.push("状态");
       if (parts.length > 0) {
         new Notice(`已保存任务（${parts.join("/")}）：${newTitle || parsed.title}`, 2000);
@@ -234,7 +215,7 @@ class EditModal extends Modal {
     this.STATUSES = opts.STATUSES; // _status.STATUSES 2 态字典,阶段 1 抽提后必须显式注入。
   }
   onOpen() {
-    const { state, topicChoices } = this.opts;
+    const { state } = this.opts;
     // 阶段 2：与 idea Modal 视觉对齐——h2 + form 排版、字体 class 一致。
     // 这里借用 idea Modal 的 title class（物理上 reuse，CSS 单源在 .obsidian/snippets/miniflow-idea-popup.css）。
     this.titleEl = this.contentEl.createEl("h2", { text: _t("taskEdit.heading", "编辑任务"), cls: "mini-flow-idea-title" });
@@ -263,25 +244,8 @@ class EditModal extends Modal {
         this.refreshSubmit();
       });
     });
-    // 关联主题:两层 chip 单选,与 task-capture 同款(2026-09-29 对齐)。
-    // 落点也照 capture:form 下平级 host div + hr 分隔,不再把主题 Setting 塞进
-    // 另一个 Setting 的控件列(Setting 套 Setting 会让 label 列叠三层)。
-    // 渲染实现共用 _ui.createTopicSection,两边不存在"改一份漏一份"。
-    this.topicSettingsHost = form.createDiv({ cls: "mini-flow-topic-settings-host" });
-    form.createEl("hr", { cls: "mini-flow-section-divider" });
-    if (!topicChoices || topicChoices.length === 0) {
-      this.topicSettingsHost.createSpan({
-        text: _t("common.noTopicsHint", "（暂无主题，先用 Topic 命令建）"),
-        cls: "mini-flow-topics-empty",
-      });
-    } else {
-      this.ui.createTopicSection({
-        host: this.topicSettingsHost,
-        tree: this.ui.buildTopicTree(topicChoices),
-        state,
-        applyChipHighlight: this.ui.applyChipHighlight,
-      }).mount();
-    }
+    // 2026-11-23 砍 topic：主题两层 chip 区已删（连同 topicSettingsHost 与 createTopicSection 调用）。
+    // task-edit 因此回到无分类控件（领域 UI 本就于 2026-10-01 删除）。
 
     const statusSetting = new Setting(form).setName(_t("common.status", "状态"));
     // 状态区：active 态只读；finish 态给一个 Active chip 重开（rewriteStatus 剥 completion）。

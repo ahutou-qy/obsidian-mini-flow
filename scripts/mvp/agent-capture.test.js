@@ -74,7 +74,8 @@ test("propose：work 域命中 → 域正确，落点为当月目录", async () 
   assert.equal(r.monthFolder, "flow/data/2026/Q4/11");
   assert.equal(r.targetFolder, "flow/data/2026/Q4/11/work7设备报警排查");
   assert.equal(r.conflict, null);
-  assert.deepEqual(r.topics.map((t) => t.id), ["work"]);
+  // 2026-11-23 砍 topic：propose 不再返回 topics 字段。
+  assert.equal("topics" in r, false, "topics 已下线");
 });
 
 test("propose：零命中兜底到 personal 域", async () => {
@@ -109,8 +110,17 @@ test("create：建 folder + 月度 Capture 行 + ### 调研 注入", async () =>
     assert.ok(!new RegExp(`^${gone}`, "m").test(readme), `${gone} 不应再出现`);
   }
   assert.ok(!/^tags:/m.test(readme), "tags 段不应再出现");
-  assert.match(readme, /^topic: "work"$/m);
-  assert.match(readme, /source: "\[\[\.\.\/ideas-2026-11#\^cap-[a-z0-9]+\]\]"/);
+  // 2026-11-23 砍 topic（阶段一停写）：不再写 topic 字段，正文也不出主题导航行。
+  // payload 仍可传 topic（agent-capture.js 的存在性校验留到阶段二一并下线），
+  // 但 buildFolderReadme 已忽略该形参。
+  assert.ok(!/^topic\s*:/m.test(readme), "topic 字段不应再出现");
+  assert.ok(!/> \*\*主题：\*\*/.test(readme), "主题导航行不应再出现");
+  // 回归守卫（2026-11-23 发现）：renderTemplate 对**未传的 key 原样保留** {{KEY}}，
+  // 所以模板里的占位符必须与 buildFolderReadme 的参数表同步删；漏一个就会把字面
+  // `{{XXX}}` 渲进新任务 README。这条断言兜住所有同类漏项。
+  assert.ok(!/\{\{\w+\}\}/.test(readme), "渲染后不应残留任何 {{...}} 占位符");
+  // 2026-11-22：前缀是两级 `../../`（README 在 Qn/MM/<dir>/，月度文件在 Qn/）
+  assert.match(readme, /source: "\[\[\.\.\/\.\.\/ideas-2026-11#\^cap-[a-z0-9]+\]\]"/);
 
   // 调研内容在该小节内、分析之前
   const iResearch = readme.indexOf("### 调研");
@@ -152,14 +162,14 @@ test("create：同名任务再建 → CliError(code 3)", async () => {
   );
 });
 
-test("create：非法 status / topic 报 CliError(code 3)", async () => {
+test("create：非法 status 报 CliError(code 3)；topic 已下线不再校验", async () => {
   const { vault } = makeVault();
   await assert.rejects(
     () => create(vault, { now: NOW, payload: { title: "x", status: "finish" } }),
     (e) => e instanceof CliError && e.code === 3 && /status 非法/.test(e.message),
   );
-  await assert.rejects(
-    () => create(vault, { now: NOW, payload: { title: "x", topic: "不存在" } }),
-    (e) => e instanceof CliError && e.code === 3 && /topic 不存在/.test(e.message),
-  );
+  // 2026-11-23 砍 topic：payload.topic 不再校验、不落 frontmatter——传非法值也被忽略。
+  const r = await create(vault, { now: NOW, payload: { title: "topic 已下线验证", topic: "不存在" } });
+  assert.equal(r.ok, true);
+  assert.equal("topic" in r, false, "返回值不再带 topic");
 });

@@ -5,9 +5,10 @@
   这段由代码通过 {{FILE_INDEX_SECTION}} 注入；删占位符只会让该段不出现。
 
   注意：domain 可覆写本模板（resolveTaskTemplate），覆写版必须同步复制
-  `{{DOMAIN_LINE}}` / `{{TOPIC_LINE}}` / `{{CODE_LOC_BLOCK}}` / `{{REF_BLOCK}}` 占位符，
+  `{{DOMAIN_LINE}}` / `{{CODE_LOC_BLOCK}}` / `{{REF_BLOCK}}` 占位符，
   否则会被静默丢弃。
-  DOMAIN_LINE / TOPIC_LINE 渲染成正文导航行（领域→规则库首页、主题→主题卡），capture 时快照。
+  DOMAIN_LINE 渲染成正文导航行（领域→规则库首页），capture 时快照。
+  （`{{TOPIC_LINE}}` 已于 2026-11-23 随「砍 topic」删除——domain 与 topic 只保留 domain。）
 
   段结构（文件索引置顶 + 正文 3 段）：
   - ## 文件索引：置顶导航锁点（task-refresh-index / miniflow 维护），先列文件再看正文
@@ -36,7 +37,7 @@
 # {{TITLE}}
 
 来源：{{SOURCE_LINK}}
-{{DOMAIN_LINE}}{{TOPIC_LINE}}
+{{DOMAIN_LINE}}
 {{CODE_LOC_BLOCK}}{{REF_BLOCK}}
 {{FILE_INDEX_SECTION}}
 ## 进展

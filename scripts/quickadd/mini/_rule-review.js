@@ -38,8 +38,13 @@ function splitRuleDoc(content) {
 // 找 block-array 字段（如 validated_by / sources / supersedes / superseded_by）
 // 在 frontmatter 行数组里的范围：[start, endExclusive)。段结束于下一个
 // `^[A-Za-z0-9_-]+\s*:`（其它字段）或 frontmatter 末尾。
+//
+// **同时认 inline 空数组 `field: []`**（2026-11-23 补）：`_rule.js#buildRuleNote`
+// 建规则时写的就是 `validated_by: []`。只认块形式的话，首次登记验证会把它当成
+// 「没有该字段」而在 frontmatter 末尾**追加**第二个 `validated_by:` 块——同一键
+// 出现两行，YAML 解析器会判重复键。认了 inline 空数组后，写入就是替换而不是追加。
 function findBlockArrayRange(lines, fieldName) {
-  const re = new RegExp(`^${fieldName}\\s*:\\s*$`);
+  const re = new RegExp(`^${fieldName}\\s*:\\s*(?:\\[\\s*\\])?\\s*$`);
   const start = lines.findIndex((l) => re.test(l));
   if (start === -1) return null;
   let end = lines.length;

@@ -138,6 +138,8 @@ test("permMode：缺省 auto、default 归一 manual、白名单外回落 auto",
     assert.equal(permMode(), "manual");
     process.env.ZC_PERMISSION_MODE = "plan";
     assert.equal(permMode(), "plan");
+    process.env.ZC_PERMISSION_MODE = "manual";
+    assert.equal(permMode(), "manual", "显式退回逐条审批要能生效");
     process.env.ZC_PERMISSION_MODE = "nope";
     assert.equal(permMode(), "auto");
   } finally {

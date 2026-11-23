@@ -10,7 +10,7 @@
 // ==============================================
 
 const assert = require("node:assert/strict");
-const { demoteCaptureLink, taskNameFromTarget, parseCaptureLine } = require("./_capture-line");
+const { demoteCaptureLink, taskNameFromTarget, parseCaptureLine, ideaBaseName } = require("./_capture-line");
 
 let passed = 0;
 let failed = 0;
@@ -97,6 +97,16 @@ test("10. parseCaptureLine 无 #yunxiao 时为 false（别名里的子串不算�
     "flow/data/2026/Q4/ideas-2026-10.md",
   );
   assert.equal(p.yunxiao, false);
+});
+
+test("11. ideaBaseName 剥前导 ../：两级 / 一级 / 裸名三种历史形态都归到文件名", () => {
+  // 2026-11-22：不剥就会拼出 `Qn/../../ideas-…`，路径 1 静默失效
+  assert.equal(ideaBaseName("../../ideas-2026-11"), "ideas-2026-11");
+  assert.equal(ideaBaseName("../ideas-2026-11"), "ideas-2026-11");
+  assert.equal(ideaBaseName("ideas-2026-11"), "ideas-2026-11");
+  assert.equal(ideaBaseName("../../ideas-2026-11.md"), "ideas-2026-11.md");
+  assert.equal(ideaBaseName(""), "");
+  assert.equal(ideaBaseName(null), "");
 });
 
 run();

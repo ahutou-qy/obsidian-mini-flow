@@ -50,6 +50,13 @@
       "shared": "docs/flow-README.md",
       "type": "file",
       "note": "流程与命令表。移出 vault 跟踪后，vault 侧 git log 查不到其变更——已知代价。"
+    },
+    {
+      "id": 8,
+      "vault": "flow/config/i18n",
+      "shared": "config/i18n",
+      "type": "dir",
+      "note": "界面文案表（zh.json / en.json 骨架）。2026-11-22 加：与代码强耦合（_i18n.test.js 守卫要求表 ⊇ 代码在用的 key）且逐机器完全相同，性质同 templates/task，不同于将来要按机器分叉的 miniflow.json——所以挂载，不走 example+拷贝。"
     }
   ],
   "config": {

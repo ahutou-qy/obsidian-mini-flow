@@ -22,8 +22,8 @@
 // - 领域默认值由 `_infer.inferDomain(name, domainChoices)` 算出；
 //   多 work 命中按 score 降序，零命中兜底第一个 work=false。
 // - 状态无自动推断（2026-09-14 删 inferStatus）：固定 active（2026-11-12 单活跃档）。
-// - topic 不再做任务名自动召回——主面板两层 chip 手选(父层 + 所选父的子层),
-//   一任务一 topic(2026-09-14 起),只选父 = 用父、选子 = 用子、再点 = 取消。
+// - 2026-11-23 砍 topic：主题两层 chip 与其推断链路全部下线，capture 弹框只剩
+//   领域后台推断（无 UI），改域走 `mf.js set --domain`。
 // - 高级区手动改即锁定：领域 → domainLocked。
 // - 领域关键词源 = flow.json#keywords。
 // - 月度 Capture 行格式不动；captureIdea 签名不变。
@@ -31,7 +31,7 @@
 // - 2026-09-14 取消「测试任务」toggle（isTest / checkboxForm 机制全删）。
 // - 2026-09-14 隐藏领域 chip（capture 入口不渲染，task-edit 仍暴露）。
 // - 2026-09-14 删推断 badge：#status / domain 早已不在弹框渲染，最后残留的 🔖 topic
-//   回显与下方 chip 选中态重复，空元素选中后撑高顶动布局。
+//   回显与下方 chip 选中态重复，空元素选中后撑高顶动布局（topic 整体已于 2026-11-23 删除）。
 // ==============================================
 
 const { Modal, Setting } = require("obsidian");
@@ -96,24 +96,17 @@ module.exports = async ({ app, quickAddApi }) => {
   const state = {
     domainChoice: null,
     status: "active",
-    topic: "",
-    domainLocked: false, // 手动钉/换领域后置 true；与状态/主题独立
+    domainLocked: false, // 手动钉/换领域后置 true；与状态独立
   };
 
-  // domainChoices 平铺 wf.keywords → choice.keywords；topic 平铺 auto_keywords。
+  // domainChoices 平铺 wf.keywords → choice.keywords。
+  // （topic 侧 hydrateTopicChoices 已于 2026-11-23 砍 topic 时删除。）
   const hydrateDomainChoices = (raw) => raw.map((c) => ({
     slug: c.slug,
     label: c.label,
     work: !!c.work,
     domain: c.domain || c.slug,
     keywords: c.workflow && Array.isArray(c.workflow.keywords) ? c.workflow.keywords : [],
-  }));
-  const hydrateTopicChoices = (raw) => raw.map((t) => ({
-    id: t.id,
-    label: t.label,
-    auto_keywords: Array.isArray(t.auto_keywords) ? t.auto_keywords : [],
-    auto_patterns: Array.isArray(t.auto_patterns) ? t.auto_patterns : [],
-    parent_id: t.parent_id || "", // 两级主题(2026-09-20):父主题 topic_id,空=根主题
   }));
 
   const modal = new IdeaModal(app, {
@@ -122,17 +115,14 @@ module.exports = async ({ app, quickAddApi }) => {
     STATUSES, // 2 态字典（active/finish），task-finish 等共享；本弹框走 ACTIVE_STATUSES（唯一活跃档 active）。
     activeStatuses: ACTIVE_STATUSES, // 显式注入,Modal class 内走 this.activeStatuses 取值。
     applyChipHighlight, // 注入到实例,class 方法内走 this.applyChipHighlight。
-    ui, // _ui 全集(buildTopicTree / createTopicSection);class 内走 this.ui.
+    ui, // _ui 视觉 helper 全集;class 内走 this.ui.
     cleanTitle,
-    loadData: () => Promise.all([
-      workflow.listDomainChoices(vault, config && config.paths),
-      workflow.listTopicChoices(vault, config && config.paths),
-    ]).then(([rawDomainChoices, rawTopicChoices]) => {
-      const domainChoices = hydrateDomainChoices(rawDomainChoices);
-      const topicChoices = hydrateTopicChoices(rawTopicChoices);
-      state.domainChoice = domainChoices[0] || null;
-      return { domainChoices, topicChoices };
-    }),
+    loadData: () => workflow.listDomainChoices(vault, config && config.paths)
+      .then((rawDomainChoices) => {
+        const domainChoices = hydrateDomainChoices(rawDomainChoices);
+        state.domainChoice = domainChoices[0] || null;
+        return { domainChoices };
+      }),
     onSubmit,
   });
   modal.open();
@@ -155,7 +145,7 @@ module.exports = async ({ app, quickAddApi }) => {
         status: state.status,
         now: window.moment(),
         domain: domainChoice.domain,
-        topic: state.topic,
+        // 2026-11-23 砍 topic：不再传 topic（_capture.js / _task.js 两侧均无该字段）。
       });
     } catch (e) {
       new Notice(`任务创建失败: ${String(e).slice(0, 160)}`);
@@ -241,13 +231,7 @@ class IdeaModal extends Modal {
         text.onChange(() => this.refreshSubmit());
       });
 
-    // 主题区:两层 chip 单选(2026-09-20 五次改造),由 loadData 异步填充。
-    // 第一层:所有根主题 chip,单选 + 再点取消(state.topic = 父 id 或 "")。
-    // 第二层:第一层选中根的 children chip,单选 + 再点取消(取消回到父)。
-    // 仅选父 = 用父;选子 = 用子;都不选 = 不挂主题。
-    this.topicSettingsHost = this.formEl.createDiv({ cls: "mini-flow-topic-settings-host" });
-
-    // 主题区与状态区的分隔线：host 的兄弟节点，主题区重渲不牵动它（避免追加堆积）。
+    // 2026-11-23 砍 topic：主题两层 chip 区已删；下面这条 hr 保留作视觉分隔。
     this.formEl.createEl("hr", { cls: "mini-flow-section-divider" });
 
     // 高级折叠区去壳（细节设计 2026-08-14 收紧）：直接把高级 Setting 平铺进 Modal 主区。
@@ -261,7 +245,7 @@ class IdeaModal extends Modal {
     this.statusSetting = new Setting(advBody)
       .setName(_t("common.status", "状态"))
       .setDesc(`${activeLabels}（唯一活跃档，capture 固定写它）`);
-    // 主题两层 chip 在 topicSettingsHost 下渲染(_ui.createTopicSection),状态在高级区。
+    // 2026-11-23 砍 topic：主题区已删，状态 Setting 直接挂在高级区。
     // 高级区仅保留状态 chip（2026-09-14 取消「测试任务」toggle 后）。
 
     // 提交按钮。
@@ -287,33 +271,18 @@ class IdeaModal extends Modal {
       return;
     }
     if (!this.formEl || !this.formEl.isConnected) return;
-    const { domainChoices, topicChoices } = data;
+    const { domainChoices } = data;
     const { state } = this.opts;
     this.domainChoices = domainChoices;
     this.ready = true;
     this.refreshSubmit();
 
-    // 两层 chip 渲染(2026-09-20 五次改造,2026-09-29 抽到 _ui.createTopicSection
-    // 与 task-edit 共用同一实现)。loadData 走完后渲染是同步的,不需要等 chip 填充。
-    if (!topicChoices || topicChoices.length === 0) {
-      this.topicSettingsHost.createSpan({
-        text: _t("common.noTopicsHint", "（暂无主题，先用 Topic 命令建）"),
-        cls: "mini-flow-topics-empty",
-      });
-    } else {
-      this.ui.createTopicSection({
-        host: this.topicSettingsHost,
-        tree: this.ui.buildTopicTree(topicChoices),
-        state,
-        applyChipHighlight: this.applyChipHighlight,
-      }).mount();
-    }
+    // 2026-11-23 砍 topic：此处原渲染主题两层 chip（_ui.createTopicSection），现已下线。
+    // capture 弹框回到纯推断——domain 本就无 UI(2026-09-14 起)，
+    // 用户 2026-11-23 明确决定**不补** domain 选择器，改域走 `mf.js set --domain`。
 
     this.refreshInfer(true);
   }
-
-  // 两层主题 chip 的渲染/选中/高亮统一在 _ui.createTopicSection(2026-09-29 抽提,
-  // 与 task-edit 共用同一实现)。本 Modal 只负责在 loadData 里建 host 并 mount。
 
   // 实时推断节流：180ms debounce。
   scheduleInfer() {

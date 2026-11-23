@@ -134,26 +134,38 @@ PY
 # 配置键集合比对（2026-11-21 改，与 install.ps1 / _config.test.js 同款判据）：
 # **只比键集合、不比取值**——deliveryDomains 等业务口径项与 paths 组各机必然不同，
 # 比取值会把「按自己的 vault 填配置」报成漂移。输出差异的组名，空 = 一致。
+# 组名单取**两边出现过的全部顶层键**，不写死（2026-11-23 改）：此前硬编码
+# modules/behavior/paths 三组，example 2026-11-22 新增 `i18n` 顶层组后，缺它的机器
+# 照样报「键集合一致」——mac 那次就是这么漏掉的。标量值没有键，按「无键」参与比较。
 config_keyset_drift() {
   if [ "$JSON_READER" = "node" ]; then
     node -e '
       const fs = require("fs");
-      const keys = (p, g) => {
-        const j = JSON.parse(fs.readFileSync(p, "utf8")) || {};
-        return Object.keys(j[g] || {}).sort().join(",");
+      const load = (p) => { try { return JSON.parse(fs.readFileSync(p, "utf8")) || {}; } catch (_e) { return {}; } };
+      const keyset = (o, g) => {
+        const v = o[g];
+        return v && typeof v === "object" && !Array.isArray(v) ? Object.keys(v).sort().join(",") : "";
       };
-      const [a, b] = process.argv.slice(1, 3);
-      const bad = ["modules", "behavior", "paths"].filter((g) => keys(a, g) !== keys(b, g));
+      const A = load(process.argv[1]), B = load(process.argv[2]);
+      const groups = [...new Set([...Object.keys(A), ...Object.keys(B)])].sort();
+      const bad = groups.filter((g) => keyset(A, g) !== keyset(B, g));
       if (bad.length) console.log(bad.join("、"));
     ' "$1" "$2"
   else
     python3 - "$1" "$2" <<'PY'
 import json, sys
-def keys(p, g):
-    with open(p, encoding="utf-8") as f:
-        return ",".join(sorted((json.load(f) or {}).get(g, {}) or {}))
-a, b = sys.argv[1], sys.argv[2]
-bad = [g for g in ("modules", "behavior", "paths") if keys(a, g) != keys(b, g)]
+def load(p):
+    try:
+        with open(p, encoding="utf-8") as f:
+            return json.load(f) or {}
+    except Exception:
+        return {}
+def keyset(o, g):
+    v = o.get(g)
+    return ",".join(sorted(v)) if isinstance(v, dict) else ""
+A, B = load(sys.argv[1]), load(sys.argv[2])
+groups = sorted(set(A) | set(B))
+bad = [g for g in groups if keyset(A, g) != keyset(B, g)]
 if bad:
     print("、".join(bad))
 PY

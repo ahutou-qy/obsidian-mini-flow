@@ -1,7 +1,7 @@
 // mf.js / _home-fields.js 的裸 node 单测：node --test flow/scripts/mvp/mf.test.js
 //
 // 段 3 的验收锁：
-//   ① `query --status active` 的集合与 Home「🏠 工作事务」活跃卡**逐条一致**——
+//   ① `query --status active` 的集合与 Home「🏠 事务」活跃卡**逐条一致**——
 //      测试里独立复现下沉前 Home 块的口径（listRecentTasks → 滤 yunxiao → taskFields → 成形），
 //      与 activeNodes 的产出比对 path/title/domain/parent/step/total/dep；
 //   ② 判据同源：结案判定（末位 reopen 不算结案）、domain 标签、状态归一都只有一处实现；

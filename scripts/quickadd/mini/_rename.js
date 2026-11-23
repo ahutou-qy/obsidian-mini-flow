@@ -140,4 +140,5 @@ module.exports = {
   resolveTargetFromLink,
   rewriteH1,
   rewriteCaptureAlias,
+  findUniqueFolderName,
 };

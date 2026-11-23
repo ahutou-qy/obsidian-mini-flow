@@ -7,7 +7,7 @@
 
 const assert = require("node:assert/strict");
 const path = require("node:path");
-const { getMilestones, setMilestones, addMilestone, serializeMilestone, getDomain, getYunxiaoId, getTopic, setTopic, getChain, setChain, getExternalDep, setExternalDep } = require("./_yaml");
+const { getMilestones, setMilestones, addMilestone, serializeMilestone, getDomain, getYunxiaoId, getReqId, getChain, setChain, getExternalDep, setExternalDep } = require("./_yaml");
 
 let passed = 0;
 let failed = 0;
@@ -189,60 +189,38 @@ test("9. getDomain 解析标量字段", () => {
   assert.equal(getDomain('---\ndomain: "work7"\n---'), "work7");
 });
 
-// yunxiao_id：写手是 外部同步 CLI 的云效物化，MF 侧只有读面（交付证据软闸消费）。
-// 走 getDomain 同一个 getScalarField，所以边界行为必须一致。
+// yunxiao_id：**云效工作项 OID**（24 位 hex），写手是 外部同步 CLI 的云效物化，MF 侧只有读面
+// （交付证据软闸消费）。走 getDomain 同一个 getScalarField，所以边界行为必须一致。
+// 样例值用真实形态——本文件旧样例写成 `work-5698`（那是 req_id 的值），2026-11-23 订正。
 test("9b. getYunxiaoId 解析标量字段（无写手，只读）", () => {
   assert.equal(getYunxiaoId(""), "");
   assert.equal(getYunxiaoId(null), "");
   assert.equal(getYunxiaoId("---\ndomain: work7\n---"), "");
-  assert.equal(getYunxiaoId("---\nyunxiao_id: work-5698\n---"), "work-5698");
-  assert.equal(getYunxiaoId('---\nyunxiao_id: "work-1"\n---'), "work-1");
+  assert.equal(getYunxiaoId("---\nyunxiao_id: f04a0e91973c8709a7ef5cf048\n---"),
+    "f04a0e91973c8709a7ef5cf048");
+  assert.equal(getYunxiaoId('---\nyunxiao_id: "9ad19b9d392dc7fbf8ee611bf6"\n---'),
+    "9ad19b9d392dc7fbf8ee611bf6");
   // 手建任务没有这个字段 → 空串（不是 undefined，调用方直接判真值）
   assert.equal(getYunxiaoId("---\ntype: task\nmilestones:\n  - {date: '2026-11-20', type: create}\n---"), "");
 });
 
-// —— 回归 task-edit.js onSubmit 拼接前端：setTopic 入参是 FRONTMATTER_RE 的 body
-// （无 ---\n 包装），走 closingIdx<0 分支仅 append，body 末尾不带 \n。
-// 之前直接用 `---\n${body}---` 模板闭合，会把末行跟 "---" 黏成同行，
-// frontmatter 失闭合标记、整篇 YAML 解析失败。task-edit.js 已改成 trim+显式 \n 闭合。
-test("11. setTopic(body 无 --- 包装) re-wrap 后闭合 --- 单独成行", () => {
-  const body = "type: task-folder\ncreated: 2026-08-03\nstatus: open\ntags:\n  - flow/task\nkind: coding\nupgraded_at: 2026-08-03";
-  const out = setTopic(body, "MiniFlow");
-  // 模拟 task-edit.js onSubmit 的 re-wrap（修复后版本）
-  const wrapped = `---\n${out.replace(/\n+$/, "")}\n---`;
-  // 闭合 --- 必须独立成行，不与 topic 字段同行
-  assert.match(wrapped, /\ntopic: "MiniFlow"\n---$/);
-  // 防呆：旧拼接模板（直接 `---\n${out}---`）会吞闭合
-  const buggy = `---\n${out}---`;
-  assert.match(buggy, /topic: "MiniFlow"---/, "buggy 模板应该会触发吞闭合（作为对照存在）");
-});
-
-test("12. getTopic 标量 + 历史 topics block 兼容取首条", () => {
-  assert.equal(getTopic("---\ntopic: work7\n---"), "work7");
-  assert.equal(getTopic('---\ntopic: "Servlet Filter"\n---'), "Servlet Filter");
-  assert.equal(getTopic("---\ntitle: x\n---"), "");
-  // 老 block 多值取第一条（task-edit 打开未迁移任务）
-  const legacy = "---\ntopics:\n  - work7\n  - travel\nkind: research\n---";
-  assert.equal(getTopic(legacy), "work7");
-});
-
-test("13. setTopic 替换/新增/清空，并收编历史 topics block", () => {
-  // 标量替换
-  assert.equal(setTopic("---\ntopic: work7\n---", "algo"), '---\ntopic: "algo"\n---');
-  // 历史 block 被标量收编：block 段删除后无 topic 行，标量插到 closing --- 前
-  const migrated = setTopic("---\ntopics:\n  - work7\nkind: x\n---", "work7");
-  assert.equal(migrated, '---\nkind: x\ntopic: "work7"\n---');
-  // block 在尾部时原位收编
+// req_id：**结构化需求编号**（`work-<数字>`），写手是 qy（云效 serialNumber 归一）。
+// 读者是 qy 的 commit 标题闸与 `defect` 组的「需求单号」字段。与上面的 OID 是两个字段。
+test("9c. getReqId 解析标量字段（无写手，只读）", () => {
+  assert.equal(getReqId(""), "");
+  assert.equal(getReqId(null), "");
+  assert.equal(getReqId("---\ndomain: work7\n---"), "");
+  assert.equal(getReqId("---\nreq_id: work-5698\n---"), "work-5698");
+  assert.equal(getReqId('---\nreq_id: "work-5668"\n---'), "work-5668");
+  // 两个字段并存时各取各的，互不串味
   assert.equal(
-    setTopic("---\nkind: x\ntopics:\n  - work7\n---", "work7"),
-    '---\nkind: x\ntopic: "work7"\n---'
+    getReqId("---\nyunxiao_id: f04a0e91973c8709a7ef5cf048\nreq_id: work-5698\n---"),
+    "work-5698",
   );
-  // 空串同时清掉标量与历史 block
-  const cleared = setTopic("---\ntopics:\n  - work7\nkind: x\n---", "");
-  assert.equal(cleared, "---\nkind: x\n---");
-  // 新增到 closing --- 前
-  const inserted = setTopic("---\nkind: x\n---", "travel");
-  assert.equal(inserted, '---\nkind: x\ntopic: "travel"\n---');
+  assert.equal(
+    getYunxiaoId("---\nyunxiao_id: f04a0e91973c8709a7ef5cf048\nreq_id: work-5698\n---"),
+    "f04a0e91973c8709a7ef5cf048",
+  );
 });
 
 // ---------- reopen 类型（2026-11-04 task-edit 重开 writer） ----------

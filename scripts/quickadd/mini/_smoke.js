@@ -32,7 +32,7 @@ async function run() {
     try {
       const r = fn();
       if (r && typeof r.then === "function") {
-        // 2026-09-20 起允许 async test 函数（listTopicChoices parent_id 测例需 mock vault 异步 read）。
+        // 2026-09-20 起允许 async test 函数（需 mock vault 异步 read 的测例）。
         await r;
       }
       passed += 1;
@@ -77,7 +77,7 @@ const CORE_MINI = [
   "_naming.js", "_rename.js", "_rule.js", "_rule-review.js", "_tab-title.js",
   "_task.js", "_walk.js", "_workflow.js",
   "rule-capture.js", "rule-validate.js", "rule-promote.js", "rule-deprecate.js",
-  "task-delete.js", "task-finish-gui.js", "topic.js",
+  "task-delete.js", "task-finish-gui.js",
 ];
 const ASSERT_PARSE = [...new Set([...TOUCHED_BY_STAGES_1_TO_5, ...CORE_MINI])];
 
@@ -101,26 +101,27 @@ test("A2. _status 导出 STATUSES + 已有 keywords", () => {
   // 全部从 _status.js 移除——capture 状态无自动推断，测试任务机制已删。
 });
 
-test("A3. _ui 导出 applyChipHighlight + getCssVar + applyAllTopicsFilter + matchTopicByQuery + buildTopicTree + findTopicRoot + renderFlatChips + applyTopicSubtreeFilter + applyTreeTopicsFilter", () => {
+test("A3. _ui 导出 applyChipHighlight + getCssVar + initI18n；8 个 topic helper 已下线", () => {
   const m = loadModule("_ui.js");
   assert.equal(typeof m.applyChipHighlight, "function");
   assert.equal(typeof m.getCssVar, "function");
-  assert.equal(typeof m.applyAllTopicsFilter, "function");
-  assert.equal(typeof m.matchTopicByQuery, "function");
-  assert.equal(typeof m.buildTopicTree, "function", "_ui 应导出 buildTopicTree(N 级父子递归)");
-  assert.equal(typeof m.findTopicRoot, "function", "_ui 应导出 findTopicRoot(2026-09-20 两层 UI 推父)");
-  assert.equal(typeof m.renderFlatChips, "function", "_ui 应导出 renderFlatChips(平铺渲染)");
-  assert.equal(typeof m.applyTopicSubtreeFilter, "function", "_ui 应导出 applyTopicSubtreeFilter(选中联动子树过滤)");
-  assert.equal(typeof m.applyTreeTopicsFilter, "function", "_ui 应导出 applyTreeTopicsFilter(关键词过滤两遍)");
-  assert.equal(typeof m.createTopicSection, "function", "_ui 应导出 createTopicSection(capture/edit 共用两层主题区)");
+  assert.equal(typeof m.initI18n, "function");
+  // 2026-11-23 砍 topic：下列 8 个随 topic 轴一并删除，断言它们**不在**导出里（防回归）。
+  for (const gone of [
+    "applyAllTopicsFilter", "matchTopicByQuery", "buildTopicTree", "findTopicRoot",
+    "renderFlatChips", "applyTopicSubtreeFilter", "applyTreeTopicsFilter", "createTopicSection",
+  ]) {
+    assert.equal(m[gone], undefined, `_ui 不应再导出 ${gone}`);
+  }
 });
 
-test("A4. _yaml 导出 getDomain", () => {
+test("A4. _yaml 导出 getDomain；topic 原语已下线", () => {
   const m = loadModule("_yaml.js");
   assert.equal(typeof m.getDomain, "function");
-  // 旧 export 不破
-  assert.equal(typeof m.getTopic, "function");
-  assert.equal(typeof m.setTopic, "function");
+  // 2026-11-23 砍 topic：getTopic / setTopic / getTopicsLegacy 已删，断言它们不在（防回归）。
+  for (const gone of ["getTopic", "setTopic", "getTopicsLegacy"]) {
+    assert.equal(m[gone], undefined, `_yaml 不应再导出 ${gone}`);
+  }
 });
 
 test("A5. _capture-line-rewrite 导出四个函数", () => {
@@ -229,127 +230,9 @@ test("A7. _capture-line.parseCaptureLine 对 ideas-2026-08.md 每行解析不抛
   }
   console.log(`       parsed=${parsedCount}, empty=${emptyCount}`);
 });
-
-// (d) 两级主题(2026-09-20 改造):listTopicChoices 返回结构含 parent_id 字段。
-// 测例 mock 最小 vault(fake getAbstractFileByPath + fake async read),跑端到端解析。
-test("A8. _workflow.listTopicChoices 返回 parent_id 字段(根主题空串 / 子主题为父 topic_id)", async () => {
-  const wf = loadModule("_workflow.js");
-  assert.equal(typeof wf.listTopicChoices, "function");
-  // fake vault:2 张卡,1 张根主题 alpha(parent_topic 空)、1 张子主题 beta(parent_topic: work)
-  const fakeChild1 = { name: "alpha.md", path: "flow/data/topics/alpha.md" };
-  const fakeChild2 = { name: "beta.md", path: "flow/data/topics/beta.md" };
-  const fakeRoot = { children: [fakeChild1, fakeChild2] };
-  const fmAlpha = '---\ntopic_id: alpha\nstatus: active\nparent_topic: ""\n---\n';
-  const fmBeta = '---\ntopic_id: beta\nstatus: active\nparent_topic: "work"\n---\n';
-  const fakeVault = {
-    getAbstractFileByPath: (p) => (p === "flow/data/topics" ? fakeRoot : null),
-    read: async (file) => {
-      if (file === fakeChild1) return fmAlpha;
-      if (file === fakeChild2) return fmBeta;
-      throw new Error(`unexpected read ${file && file.path}`);
-    },
-  };
-  const choices = await wf.listTopicChoices(fakeVault);
-  const alpha = choices.find((c) => c.id === "alpha");
-  const beta = choices.find((c) => c.id === "beta");
-  assert.ok(alpha, "应返回 alpha");
-  assert.ok(beta, "应返回 beta");
-  assert.equal(alpha.parent_id, "", "根主题 parent_id 应为空串");
-  assert.equal(beta.parent_id, "work", "子主题 parent_id 应为 'work'");
-});
-
-// (e) 两级主题分组依据(2026-09-20):多父多子场景下,parent_id 字段为 capture/edit
-// 树形渲染提供可索引的分组依据(父过滤 parent_id==''、子按 parent_id 命中父)。
-// 测例覆盖 2 父 + 各自 1 子,验证 filter / parent_id 索引能正确归类。
-test("A9. _workflow.listTopicChoices 树形分组依据:多父多子下 parent_id 可稳定过滤", async () => {
-  const wf = loadModule("_workflow.js");
-  const fakeRoot = {
-    children: [
-      { name: "alpha.md", path: "flow/data/topics/alpha.md" },
-      { name: "beta.md", path: "flow/data/topics/beta.md" },
-      { name: "gamma.md", path: "flow/data/topics/gamma.md" },
-      { name: "delta.md", path: "flow/data/topics/delta.md" },
-    ],
-  };
-  const fmAlpha = '---\ntopic_id: alpha\nstatus: active\nparent_topic: ""\n---\n';
-  const fmBeta = '---\ntopic_id: beta\nstatus: active\nparent_topic: "alpha"\n---\n';
-  const fmGamma = '---\ntopic_id: gamma\nstatus: active\nparent_topic: ""\n---\n';
-  const fmDelta = '---\ntopic_id: delta\nstatus: active\nparent_topic: "gamma"\n---\n';
-  const fakeVault = {
-    getAbstractFileByPath: (p) => (p === "flow/data/topics" ? fakeRoot : null),
-    read: async (file) => {
-      const m = { "alpha.md": fmAlpha, "beta.md": fmBeta, "gamma.md": fmGamma, "delta.md": fmDelta };
-      return m[file.name] || "";
-    },
-  };
-  const choices = await wf.listTopicChoices(fakeVault);
-  assert.equal(choices.length, 4, "应返回全部 4 张卡(deprecated 已被源端过滤,本测无 deprecated)");
-  // 父主题判定:parent_id 为空串或缺省。
-  const parents = choices.filter((c) => !c.parent_id);
-  assert.equal(parents.length, 2, "应识别 2 张父主题");
-  // 子主题按父分组:tree 渲染走 childrenByParent.get(parentId) 索引,索引命中预期关键。
-  const childOfAlpha = choices.filter((c) => c.parent_id === "alpha");
-  const childOfGamma = choices.filter((c) => c.parent_id === "gamma");
-  assert.equal(childOfAlpha.length, 1, "alpha 应有 1 张子主题(beta)");
-  assert.equal(childOfAlpha[0].id, "beta");
-  assert.equal(childOfGamma.length, 1, "gamma 应有 1 张子主题(delta)");
-  assert.equal(childOfGamma[0].id, "delta");
-  // 父无对应子时 childrenByParent.get(parentId) 应返空数组,不应抛错。
-  // 模拟渲染层 `childrenByParent.get(p.id) || []` 行为:无子主题的父仍能渲染。
-  const parentsWithNoChildren = parents.filter((p) => choices.filter((c) => c.parent_id === p.id).length === 0);
-  // 本测故意让 alpha / gamma 各有 1 子,验证以上不命中情况需在真实场景由 listTopicChoices
-  // 自然返回(parent_id 字段空串 / 字段缺省视为根主题,过滤分支在本 cover 内由 done 测试);
-  // 此处断言不命中数=0 与后续不重复渲染无关。
-  assert.equal(parentsWithNoChildren.length, 0, "本测故意构造 2 父各 1 子,无空子父");
-});
-
-// (f) N 级父子递归(2026-09-20 嵌套强化)：buildTopicTree + applyTreeTopicsFilter
-// 端到端 mock vault:3 根 + 1 三级链,验证 N 级递归不丢层 + 过滤保留树关系。
-// 本测只覆盖 _ui helper,与 A8/A9 的 listTopicChoices 数据契约测试互补。
-test("A10. _ui.buildTopicTree + applyTreeTopicsFilter 端到端 N 级父子不丢层", () => {
-  const ui = loadModule("_ui.js");
-  const choices = [
-    { id: "work", label: "work", auto_keywords: ["work"], parent_id: "" },
-    { id: "work5", label: "work5", auto_keywords: ["work5", "p541"], parent_id: "work" },
-    { id: "work7", label: "work7", auto_keywords: ["work7", "rfid"], parent_id: "work" },
-    { id: "work7-extra", label: "work7-extra", auto_keywords: ["work7-extra"], parent_id: "work7" },
-    { id: "algo", label: "algo", auto_keywords: ["algo"], parent_id: "" },
-  ];
-  const roots = ui.buildTopicTree(choices);
-  // 三级链:work → work7 → work7-extra
-  assert.equal(roots.length, 2, "应有 2 个根主题(algo + work)");
-  const workRoot = roots.find((n) => n.topic.id === "work");
-  assert.ok(workRoot, "应识别 work 为根主题");
-  const work7Node = workRoot.children.find((c) => c.topic.id === "work7");
-  assert.ok(work7Node, "work 下应识别 work7 子主题");
-  const work7ExtraNode = work7Node.children.find((c) => c.topic.id === "work7-extra");
-  assert.ok(work7ExtraNode, "work7 下应识别 work7-extra 三级子主题(N 级递归不丢层)");
-  assert.equal(work7ExtraNode.children.length, 0);
-
-  // 过滤 "rfid" → 仅在 work7 关键字:验证祖先保留 + 子树传播
-  const mask = ui.applyTreeTopicsFilter(roots, "rfid");
-  for (const id of ["work", "work5", "work7", "work7-extra"]) {
-    assert.equal(mask[id], true, `${id} 应可见(祖先保留 + 子树传播)`);
-  }
-  assert.equal(mask["algo"], false, "algo 不应被波及");
-});
-
-test("A11. _ui.applyTreeTopicsFilter 跨代际(三级链)→ work7-extra 命中时 work 全家展开", () => {
-  const ui = loadModule("_ui.js");
-  const choices = [
-    { id: "work", label: "work", auto_keywords: [], parent_id: "" },
-    { id: "work7", label: "work7", auto_keywords: [], parent_id: "work" },
-    { id: "work7-extra", label: "work7-extra", auto_keywords: ["独家"], parent_id: "work7" },
-    { id: "algo", label: "algo", auto_keywords: [], parent_id: "" },
-  ];
-  const roots = ui.buildTopicTree(choices);
-  const mask = ui.applyTreeTopicsFilter(roots, "独家");
-  // 命中 work7-extra → work7 祖先 + work 更祖先 + 子树全展开
-  for (const id of ["work7-extra", "work7", "work"]) {
-    assert.equal(mask[id], true);
-  }
-  assert.equal(mask["algo"], false);
-});
+// 2026-11-23 砍 topic：A8/A9（_workflow.listTopicChoices 数据契约）、A10/A11（buildTopicTree +
+// applyTreeTopicsFilter）全部随 topic 轴落地下线——listTopicChoices 与 _ui 的 topic helper 已删，
+// 用例留着只会红。topic 的「已下线」由 A3/A4 的 `undefined` 断言守。
 
 test("A14. _clipboard 导出 + fullPathOf 退化链（桌面绝对路径 / 无 API / 抛错 / 空串 / 裸 node 不 reject）", async () => {
   const clip = loadModule("_clipboard.js");

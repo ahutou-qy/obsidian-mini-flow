@@ -73,7 +73,7 @@ const DEFAULTS = {
     homePath: "Home.md",                        // 首页笔记（task-finish 关 tab 后回它）
     ideasFile: "flow/ideas-home.txt",           // 闪念文件
     domainRoot: "flow/data/domains",            // 领域根
-    topicRoot: "flow/data/topics",              // 主题根
+    // topicRoot 已于 2026-11-23 砍 topic 时删除（listTopicChoices 一并下线，无消费方）。
   },
 };
 

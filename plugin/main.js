@@ -72,7 +72,7 @@ const HOME_FIELDS_PATH = "flow/scripts/quickadd/mini/_home-fields.js";
 const TASK_FINISH_GUI_PATH = "flow/scripts/quickadd/mini/task-finish-gui.js";
 const CAPTURE_LINE_PATH = "flow/scripts/quickadd/mini/_capture-line.js";
 const YAML_PATH = "flow/scripts/quickadd/mini/_yaml.js";
-// 启动 claude 会话的单源（与 QuickAdd 宏 Open Claude 共用）：Home「🏠 工作事务」行内 ▶ 按钮走它。
+// 启动 claude 会话的单源（与 QuickAdd 宏 Open Claude 共用）：Home「🏠 事务」行内 ▶ 按钮走它。
 const LAUNCH_PATH = "flow/scripts/quickadd/mini/_launch-claude.js";
 // Home 首行那一个两栏网格（含 [!proposed] 卡的那个 [!cols]）：右栏「自适应填满」按它量行高。
 const HOME_GRID_SELECTOR =
@@ -100,7 +100,7 @@ const BEHAVIOR = { ...BEHAVIOR_DEFAULTS };
 // QuickAdd 的脚本加载器恰好把 window.require 原样透传给用户脚本：
 //     let o = g => window.require && window.require(g);
 //     new Function("require", "module", "exports", code)(o, mod, exp)
-// 于是 flow/scripts/quickadd/mini/ 下 task-capture / task-edit / topic 三个命令
+// 于是 flow/scripts/quickadd/mini/ 下 task-capture / task-edit 两个命令
 // （连它们经 loadHelper 字符串加载的 _ui.js 里那次 require）全部在**加载期**就失败，
 // 报 `QuickAdd could not load .../X.js because it could not find the required
 // module "obsidian"`——命令面板里按下去只弹这一句，弹框根本不出现。
@@ -314,11 +314,9 @@ class ConvertIdeaModal extends Modal {
       text.onChange((v) => { state.title = v; this.refreshSubmit(); });
     });
 
-    // 主题区：与 task-capture 同款 host + createTopicSection；topicChoices 在外层异步
-  // 加载完再回填（modal 构造时 topicChoices 还是 null，先建空 host + 加载状态）。
-  this.topicSettingsHost = form.createDiv({ cls: "mini-flow-topic-settings-host" });
-  form.createEl("hr", { cls: "mini-flow-section-divider" });
-  this.renderTopicChips();
+    // 2026-11-23 砍 topic：主题区 host 与 renderTopicChips 已删。
+    // 保留 hr 作视觉分隔（原主题区与状态区之间的线）。
+    form.createEl("hr", { cls: "mini-flow-section-divider" });
 
   // 状态区：唯一活跃档没有可切换项 → 只读说明，与 task-capture 一致（2026-11-12 收敛）。
     const activeLabels = this.activeStatuses.map((s) => s.label).join(" / ");
@@ -345,30 +343,70 @@ class ConvertIdeaModal extends Modal {
   // 2026-11-12：状态只剩唯一活跃档 active，弹框不再提供切换 → setStatus /
   // refreshStatus（状态 chip 高亮）连同 statusBtns 一并删除。
 
-  // 主题 chips 渲染：convertIdeaToTask 异步回填 topicChoices 后调用；onOpen 时
-  // topicChoices 尚未就绪，先建 host,再由本方法首跑 mount。
-  renderTopicChips() {
-    if (!this.topicSettingsHost) return;
-    this.topicSettingsHost.empty();
-    if (!this.opts.topicChoices || this.opts.topicChoices.length === 0) {
-      this.topicSettingsHost.createSpan({
-        text: "（暂无主题，先用 Topic 命令建）",
-        cls: "mini-flow-topics-empty",
-      });
-      return;
-    }
-    this.ui.createTopicSection({
-      host: this.topicSettingsHost,
-      tree: this.ui.buildTopicTree(this.opts.topicChoices),
-      state: this.opts.state,
-      applyChipHighlight: this.applyChipHighlight,
-    }).mount();
-  }
+  // 2026-11-23 砍 topic：renderTopicChips 已删——ConvertIdeaModal 不再有主题 chip，
+  // 闪念转任务回到纯推断（不写 topic，见 onConvertSubmit）。
 
   submit() {
     if (!this.submitBtn || this.submitBtn.disabled) return;
     const v = this.nameInputEl ? this.nameInputEl.value : "";
     this.opts.onSubmit(v);
+  }
+}
+
+// 会话启动时刻 → 本地时钟文本（面板里的「启动 15:14」）。
+function formatClock(ms) {
+  if (!ms) return "—";
+  try {
+    return new Date(ms).toLocaleTimeString("zh-CN", { hour12: false });
+  } catch {
+    return "—";
+  }
+}
+
+// ==============================================
+// 会话列表面板（2026-11-23）：Home「🏠 事务」卡的会话状态徽标点开就是它。
+//
+// 为什么放插件侧而不是 Home.md 的 dataviewjs：面板要 Obsidian 的 Modal（插件上下文
+// 才有稳定的 Modal / Notice），dataviewjs 里手搓一个弹层就是第二份实现。卡面只调
+// api.showSessionPanel(path)，不碰面板 DOM 结构。
+//
+// 数据由插件现读注册表（**不缓存**）——点开看的是当下这一刻的活会话。
+// 判据与图标映射来自 `_session-probe.js`（单源），本类只渲染。
+// ==============================================
+class SessionPanelModal extends Modal {
+  constructor(app, opts) {
+    super(app);
+    this.opts = opts || {};
+  }
+
+  onOpen() {
+    const { title, sessions, icons, labels } = this.opts;
+    this.titleEl = this.contentEl.createEl("h2", { text: title });
+    const list = sessions || [];
+    if (!list.length) {
+      this.contentEl.createDiv({
+        text: "该任务当前没有活着的 claude 会话。",
+        cls: "miniflow-sess-empty",
+      });
+      return;
+    }
+    const ul = this.contentEl.createEl("ul", { cls: "miniflow-sess-list" });
+    for (const s of list) {
+      const li = ul.createEl("li");
+      const icon = (icons && icons[s.status]) || "";
+      li.createEl("div", {
+        text: `${icon} ${s.name || "(无名会话)"}`.trim(),
+        cls: "miniflow-sess-name",
+      });
+      li.createEl("div", {
+        text: `${(labels && labels[s.status]) || s.status} · pid ${s.pid} · 启动 ${formatClock(s.startedAt)}`,
+        cls: "miniflow-sess-meta",
+      });
+    }
+  }
+
+  onClose() {
+    this.contentEl.empty();
   }
 }
 
@@ -453,16 +491,44 @@ class MiniflowPlugin extends Plugin {
       callback: () => { void this.runMfReindex(); },
     });
 
+    // `mf.js idea` 写盘后的补派发（2026-11-23）：闪念文件是 .txt、刻意不进 Dataview 索引，
+    // Home 闪念块只监听 `miniflow:ideas-changed` 自定义事件；CLI 进程派发不了 DOM 事件，
+    // 所以给无头调用方一条命令。无参、无确认，跑完发一条 Notice。
+    this.addCommand({
+      id: "ideas-reload",
+      name: "闪念重绘（CLI 写 ideas-home.txt 后调用，供 MCP）",
+      callback: () => {
+        window.dispatchEvent(new Event(IDEAS_CHANGED_EVENT));
+        new Notice("闪念卡片已重绘");
+      },
+    });
+
     // 云效 / qy 集成模块：**本开源包不含**。上游私有部署里它是一个功能模块，
     // 由 flow/config/miniflow.json 的 modules.yunxiao 开关闸住注册；开源包在导出时
     // 把整段代码裁掉了，开关因此只剩一个空位（设置页会标明）。
+
+    // 预缺陷 Home 卡（2026-11-23，**不属云效模块**——数据源是 vault 内的缺陷单目录
+    // `flow/data/domains/work-family/defects/`，与 qy / 云效无关，所以不放进上面的
+    // moduleEnabled("yunxiao") 门里）。
+    // 渲染 `miniflow-defect` 代码块：只列**待产品决策**的条目（`_defect.js#summarize`
+    // 的默认口径），行尾 ▶️ 在该缺陷关联的任务里起 claude 会话。
+    // 挂 MarkdownRenderChild 的理由同 qy-sync 卡：缺陷单是**另一个目录下的文件**，
+    // CLI 写它不会让 Home.md 重渲染——只挂处理器等于卡片冻结在上一次 Home 渲染的时刻。
+    this.registerMarkdownCodeBlockProcessor(
+      "miniflow-defect",
+      (_source, el, ctx) => {
+        // 老 Obsidian / 加载失败时别把整块搞成错误框：DefectCard 内部各自兜空态。
+        ctx.addChild(new DefectCard(el, this));
+      },
+    );
+
     // 暴露 convertIdeaToTask 给 Home.md 闪念块（dataviewjs 内）调用：经
     // `app.plugins.plugins["miniflow"].api.convertIdeaToTask(text)` 一行
     // 触发，弹 Mini Flow 同形态 Modal，创建成功后删该闪念。详见 onConvertSubmit。
-    // home* 四个是 Home 卡的**直读 md 读面**（2026-11-18）：工作事务卡与外部依赖卡原走
+    // home* 四个是 Home 卡的**直读 md 读面**（2026-11-18）：事务卡与外部依赖卡原走
     // Dataview 的 dv.pages，flow/data 下任何 md 变动都 bump index.revision → 整块清空重建、
     // 卡面间歇性闪烁。改由卡内自控重绘后，取数收口到这里（判据共用一套，不各写一份）。
-    // 2026-11-19 起外部依赖并入工作事务卡、独立 ⛔ 卡已删，homeDepTasks 只服务卡尾兜底差集。
+    // 2026-11-19 起外部依赖并入事务卡、独立 ⛔ 卡已删，homeDepTasks 只服务卡尾兜底差集。
     // launchClaude 是**动作**不是读面（2026-11-19）：Home 活跃卡任务行尾的 ▶ 按钮调它，
     // 在该任务根起一个全新 claude 会话。实现单源在 _launch-claude.js（QuickAdd 宏 Open
     // Claude 共用同一份），这里只做字符串加载 + 失败收口成 Notice（成功不发 Notice——
@@ -488,7 +554,6 @@ class MiniflowPlugin extends Plugin {
       ["progress-checkin", "Progress Checkin", "progress-checkin.js", [["Mod", "Shift"], "P"]],
       ["open-claude", "Open Claude", "open-claude.js", [["Mod", "Shift"], "C"]],
       ["open-finder", "Open Finder", "open-finder.js", [["Mod", "Shift"], "O"]],
-      ["topic", "Topic", "topic.js", [["Mod", "Shift"], "K"]],
       ["task-upgrade", "Task Upgrade", "task-upgrade.js", [["Mod", "Shift"], "U"]],
       ["rule-capture", "Rule Capture", "rule-capture.js", [["Mod", "Alt"], "C"]],
       ["rule-validate", "Rule Validate", "rule-validate.js", [["Mod", "Alt"], "V"]],
@@ -528,6 +593,11 @@ class MiniflowPlugin extends Plugin {
       homeTaskFields: (path) => this.homeTaskFields(path),
       homeDepTasks: () => this.homeDepTasks(),
       homeDomainLabels: () => this.homeDomainLabels(),
+      // 本机 claude 会话（2026-11-23）：Home 事务卡的会话状态徽标。**只读**（读 Claude Code
+      // 的会话注册表），不写盘、不跨设备；读不到就返回 {}，卡面照常渲染。
+      homeSessions: (paths) => this.homeSessions(paths),
+      // 徽标点开 → 列出该任务的活会话（**动作不是读面**，面板在插件侧，Modal 才有稳定外观）。
+      showSessionPanel: (vaultPath) => this.showSessionPanel(vaultPath),
       launchClaude: (vaultPath) => this.launchClaude(vaultPath),
       // Home 右栏「自适应填满」（2026-11-19）：卡片登记自己，本模块按网格行高调条目数。
       registerFillable: (spec) => this.registerFillable(spec),
@@ -547,7 +617,7 @@ class MiniflowPlugin extends Plugin {
   // ============================================================
   // launchClaude(vaultPath)：在给定任务的目录里起一个全新 claude 会话。
   //
-  // 调用方 = Home「🏠 工作事务」活跃卡任务行尾的 ▶ 按钮（Home.md 的 renderNode）。
+  // 调用方 = Home「🏠 事务」活跃卡任务行尾的 ▶ 按钮（Home.md 的 renderNode）。
   // `vaultPath` 是 capture 行的 linkTarget（vault 相对、不带 .md，folder 任务形如
   // `flow/data/YYYY/Qn/MM/<任务>/README`）——上抬到任务根、会话名取任务目录名的判据在
   // `_launch-claude.js#resolveTarget`（纯函数带单测），别在这里再写一份路径规则。
@@ -569,7 +639,7 @@ class MiniflowPlugin extends Plugin {
   // Home 右栏「自适应填满」（2026-11-19）。
   //
   // 现象：首行两栏网格里，右栏四张卡（闪念 / 云效 / 待复盘 / 溯源链）被网格拉伸到与
-  // 左栏工作事务卡同高，而卡内条目远不够 → 卡片下半截一片空白，平面利用率低。
+  // 左栏事务卡同高，而卡内条目远不够 → 卡片下半截一片空白，平面利用率低。
   //
   // 机制（不动 CSS）：网格默认 align-items: stretch，卡片盒高 = 所在行高。行高由「跨四行
   // 的左栏卡（= 整列总高 A）」与右栏各卡的自然高共同分摊：
@@ -610,7 +680,7 @@ class MiniflowPlugin extends Plugin {
   // 关键：预算**自己算**，不读网格当前的分摊值。网格行高是 auto 的，跟内容互相决定
   // （内容多 → 行高涨 → 可用高度涨 → 又能多显示几条），拿当前行高当目标会自锁：卡一空，
   // 行高就缩回分摊值，于是永远填不满（第一版就栽在这，仿真里表现为「填完反而只剩 2 条」）。
-  // 改成直接拿左栏工作事务卡的自然高度 A 当总高：
+  // 改成直接拿左栏事务卡的自然高度 A 当总高：
   //     预算 = A − 固定卡自然高 − 可填卡的固定开销 − 行距
   // 预算在可填卡之间分掉，各卡取「累计高 ≤ 份额」的最大前缀 → 右栏自然总高 ≈ A → 网格
   // 没有富余 → 每张卡都不留内部空白（总量守恒：多显示的条目正是从别处挪来的空白）。
@@ -633,7 +703,7 @@ class MiniflowPlugin extends Plugin {
     }
     if (!specs.length) return false;
 
-    // A = 左栏工作事务卡的自然高度 = 整列总高。
+    // A = 左栏事务卡的自然高度 = 整列总高。
     const total = this.naturalHeight(left);
     // 固定卡（云效 / 溯源链）内容固定，只占位、填不动。
     let fixed = 0;
@@ -821,7 +891,7 @@ class MiniflowPlugin extends Plugin {
   }
 
   // 标了未结案 external_dep 的任务（**兜底差集数据源**，2026-11-19 起）。
-  // 外部依赖已并入「🏠 工作事务」活跃卡、独立 ⛔ 卡已删：活跃集合内的展示走 homeTaskFields
+  // 外部依赖已并入「🏠 事务」活跃卡、独立 ⛔ 卡已删：活跃集合内的展示走 homeTaskFields
   // 的 externalDep，本函数只被活跃卡用来算「有 dep 却不在活跃集合」的条数（卡尾那行灰字）。
   // 口径（两类 type、全库扫、结案判定、稳定排序）都在 _home-fields.js#depTasks，别在这里另写。
   async homeDepTasks() {
@@ -830,6 +900,145 @@ class MiniflowPlugin extends Plugin {
     ]);
     return fields.depTasks(this.app.vault, yaml, line);
   }
+
+  // ============================================================
+  // 本机 claude 会话探针（2026-11-23）——Home「🏠 事务」卡的会话状态徽标。
+  //
+  // 数据源：Claude Code 的**实时会话注册表** `$CLAUDE_CONFIG_DIR/sessions/<pid>.json`
+  // （缺省 `~/.claude/sessions`）。一条会话一个文件，带 pid / cwd / status / name。
+  //
+  // 为什么是它：Home 卡要显示「本机是否开着该任务的 claude 会话」。别的源都不行——
+  // `~/.claude/projects/<转义目录名>/` 把中文全换成 `-`、反查不回任务；hook 落盘要另接
+  // Stop/Notification 才拿得到 busy/idle/waiting；进程枚举的 CommandLine 只有 `--name`、
+  // 拿不到 cwd。注册表是唯一现成且带 cwd 与 status 的源（实测：本机一条会话一个文件）。
+  //
+  // 边界：**只读、不写盘、不跨设备**（注册表是本机事实）；匹配**只按 cwd**（会话工作
+  // 目录落在任务根或其子目录内即命中，从 vault 根 / flow/ 起的会话不亮——这是口径不是
+  // 缺陷）；崩溃或强杀残留的死 pid 按 isAlive 过滤。
+  // **任何异常都兜成空对象**——徽标是锦上添花，读不到就不出，绝不让卡面报错。
+  // ============================================================
+
+  // 判据模块（纯函数、零 require）：缓存一次即可，模块本身无状态。
+  async sessionProbe() {
+    if (!this._sessionProbe) this._sessionProbe = this.loadModule(SESSION_PROBE_PATH);
+    return this._sessionProbe;
+  }
+
+  // pid 存活校验：崩溃 / 强杀会留下 json 残留（正常退出由 process.on("exit") 删文件）。
+  // signal 0 只探测不发送；EPERM（有进程但当前身份没权限）算活着。
+  sessionAlive(pid) {
+    try {
+      require("process").kill(pid, 0);
+      return true;
+    } catch (e) {
+      return !!(e && e.code === "EPERM");
+    }
+  }
+
+  // 读注册表 → 会话列表。只收 `.json`（同目录的 `<pid>.<sha>.key` 是会话间认证令牌，
+  // **不读也不展示**；`.fleetview-heartbeat` 是心跳文件，与任务无关）。
+  async readSessions() {
+    try {
+      const probe = await this.sessionProbe();
+      const fs = require("fs");
+      const os = require("os");
+      const proc = require("process");
+      const dir = probe.sessionDir(proc.env, os.homedir());
+      if (!dir) return [];
+      let names;
+      try {
+        names = await fs.promises.readdir(dir);
+      } catch {
+        return [];
+      }
+      const entries = [];
+      for (const name of names) {
+        if (name.startsWith(".") || !name.toLowerCase().endsWith(".json")) continue;
+        try {
+          entries.push({ name, text: await fs.promises.readFile(dir + "/" + name, "utf8") });
+        } catch { /* 单个文件读不到就跳过，不影响其它 */ }
+      }
+      return probe.parseSessions(entries);
+    } catch {
+      return [];
+    }
+  }
+
+  // 任务路径（vault 相对、不带 .md）→ { path, root }：root 是任务根的**绝对路径**。
+  // 上抬规则与 ▶️ 按钮共用 `_launch-claude.js#resolveTarget`（单源，不另写一份路径规则）。
+  async sessionRoots(paths) {
+    if (!this._launchClaude) this._launchClaude = this.loadModule(LAUNCH_PATH);
+    const launch = await this._launchClaude;
+    const adapter = this.app.vault && this.app.vault.adapter;
+    if (!adapter || typeof adapter.getFullPath !== "function") return [];
+    const roots = [];
+    for (const p of paths) {
+      try {
+        const t = launch.resolveTarget(p, (rel) => adapter.getFullPath(rel));
+        roots.push({ path: p, root: t.cwd });
+      } catch { /* 路径不成任务布局 → 跳过这条 */ }
+    }
+    return roots;
+  }
+
+  // 读面：给定一批任务路径 → { <路径>: { count, status, icon, sessions:[…] } }。
+  // 没有会话的任务**不出键**；读不到源（无注册表 / 全崩）返回 {}（卡面照常渲染）。
+  async homeSessions(paths) {
+    try {
+      const list = (Array.isArray(paths) ? paths : []).filter((p) => typeof p === "string" && p);
+      if (!list.length) return {};
+      const [probe, roots] = await Promise.all([this.sessionProbe(), this.sessionRoots(list)]);
+      if (!probe || typeof probe.matchSessions !== "function" || !roots.length) return {};
+      const sessions = await this.readSessions();
+      const matched = probe.matchSessions(sessions, roots.map((r) => r.root), {
+        // Windows 大小写不敏感；macOS/Linux 按敏感处理，别把不同目录并成同一个。
+        caseInsensitive: require("os").platform() === "win32",
+        isAlive: (pid) => this.sessionAlive(pid),
+      });
+      const out = {};
+      for (const r of roots) {
+        const hit = matched[r.root];
+        if (!hit) continue;
+        out[r.path] = {
+          count: hit.count,
+          status: hit.status,
+          // chip：卡面 chip 的修饰类用（shell 按显示档归到 idle，见 _session-probe.js
+          // 的 STATUS_DISPLAY）；label：中文文案（面板与 hover 提示共用同一份）。
+          chip: probe.STATUS_DISPLAY[hit.status] || hit.status,
+          label: probe.STATUS_LABELS[hit.status] || hit.status,
+          icon: probe.STATUS_ICONS[hit.status] || "",
+          sessions: hit.sessions,
+        };
+      }
+      return out;
+    } catch (e) {
+      console.warn("[miniflow] 读取本机会话失败:", e);
+      return {};
+    }
+  }
+
+  // 徽标点开：列出该任务**此刻**活着的 claude 会话（数据现读注册表，不缓存）。
+  async showSessionPanel(vaultPath) {
+    try {
+      const data = await this.homeSessions([vaultPath]);
+      const hit = data[vaultPath];
+      const probe = await this.sessionProbe();
+      const fields = await this.homeFields();
+      const name = fields && typeof fields.nameOfPath === "function"
+        ? fields.nameOfPath(vaultPath)
+        : String(vaultPath || "");
+      const sessions = hit ? hit.sessions : [];
+      new SessionPanelModal(this.app, {
+        title: `${name} · claude 会话（${sessions.length}）`,
+        sessions,
+        icons: probe.STATUS_ICONS,
+        labels: probe.STATUS_LABELS,
+      }).open();
+    } catch (e) {
+      new Notice(`读取本机会话失败：${String((e && e.message) || e).trim().slice(0, 200)}`, 6000);
+    }
+  }
+
   // ---------- 云效 / qy 队列消费：本开源包不含 ----------
   // 四个旁车队列（合并 / 回归 / 转出 / 描述变更）与 qy sync 卡渲染在导出时整段裁掉。
 
@@ -920,6 +1129,87 @@ class MiniflowPlugin extends Plugin {
   async readBehaviorConfig() {
     const raw = await this.readConfigFile();
     return { ...BEHAVIOR_DEFAULTS, ...(raw.behavior) };
+  }
+
+  // ============================================================
+  // renderDefectCard(el)：Home「🐞 预识别缺陷」卡（2026-11-23；同日改为一缺陷一文件）。
+  //
+  // 数据源 = `flow/data/domains/work-family/defects/` 目录（扫每张单的 frontmatter），
+  // 解析单源 = `_defect.js#summarize`（默认只取「待产品决策」）。**不引第二份解析、
+  // 不建 JSON 旁车**——旁车要双写，一定会与缺陷单漂移；CLI `mf.js defect` 读的是同一份。
+  // `_defect.js` 零 require，`_yaml.js` 走 makeDefectApi 注入。
+  //
+  // 空态：一条待决策都没有时给一行灰字，**不隐藏整块**——首行 cols 是显式 grid
+  // （左栏 tasks 跨 N 行、右栏每卡固定行号），隐藏整块会让行号错位、左栏多出空白。
+  //
+  // ▶️ 按钮：只在该条有「关联任务」时出现，走 launchClaude（上抬到任务根的判据在
+  // _launch-claude.js#resolveTarget，这里只传 summarize 剥好的 taskPath）。
+  // ============================================================
+  async renderDefectCard(el) {
+    // **先清空再重建**：本方法会被台账 modify / 窗口回焦点重复触发，不清空就会在同一个
+    // containerEl 里叠出多份（2026-11-23 上线当天实测：卡片出现两条同名预缺陷）。
+    // 与 云效同步卡渲染（本包未含） 同款（它开头也是 `el.empty()`）。
+    el.empty();
+    const wrap = el.createDiv({ cls: "miniflow-defect" });
+    let api = null;
+    let dir = "";
+    try {
+      const mod = await this.loadModule(DEFECT_MODULE_PATH);
+      const yaml = await this.loadModule(YAML_PATH);
+      api = mod.makeDefectApi(yaml);
+      dir = mod.DEFECT_DIR;
+    } catch (_e) {
+      wrap.createDiv({ cls: "miniflow-defect-empty", text: "预缺陷单模块加载失败" });
+      return;
+    }
+    let rows = [];
+    try {
+      const listing = await this.app.vault.adapter.list(dir);
+      const files = [];
+      for (const rel of listing.files || []) {
+        if (!/\.md$/i.test(rel)) continue;
+        const f = this.app.vault.getAbstractFileByPath(rel);
+        if (!f) continue;
+        files.push({ path: rel, content: await this.app.vault.cachedRead(f) });
+      }
+      rows = api.summarize(files);
+    } catch (_e) {
+      rows = [];
+    }
+    if (!rows.length) {
+      wrap.createDiv({ cls: "miniflow-defect-empty", text: "暂无待产品决策的预识别缺陷" });
+      return;
+    }
+    // 风险高的排前（P0→P3），同档按编号（编号含日期，等于按发现时间）。
+    const order = { P0: 0, P1: 1, P2: 2, P3: 3 };
+    rows.sort((a, b) => (order[a.risk] ?? 9) - (order[b.risk] ?? 9) || a.id.localeCompare(b.id));
+
+    const ul = wrap.createEl("ul");
+    for (const r of rows) {
+      const li = ul.createEl("li", { cls: "miniflow-defect-row" });
+      li.createSpan({
+        text: r.risk || "-",
+        cls: `miniflow-defect-risk miniflow-defect-risk-${r.risk || "none"}`,
+      });
+      const link = li.createEl("a", {
+        text: r.title,
+        cls: "internal-link",
+        attr: { title: `${r.id} · ${r.module}` },
+      });
+      link.onclick = (ev) => {
+        ev.preventDefault();
+        this.app.workspace.openLinkText(r.file || dir, "", false);
+      };
+      if (r.id) li.createSpan({ text: ` · ${r.id}`, cls: "miniflow-defect-id" });
+      if (r.taskPath) {
+        const btn = li.createSpan({
+          text: "▶️",
+          cls: "miniflow-defect-cc",
+          attr: { title: "在该缺陷关联的任务里启动 Claude" },
+        });
+        btn.onclick = () => this.launchClaude(r.taskPath);
+      }
+    }
   }
 
   async moduleEnabled(name) {
@@ -1044,7 +1334,7 @@ class MiniflowPlugin extends Plugin {
   // convertIdeaToTask：Home 闪念转任务的入口。
   //
   // 调用方（Home.md 闪念块按钮）传入 rawBlock（包含 "- " 前缀 + 续行的整段文本）；
-  // 经 cleanTitle 剥 #tag / #wikilink / #field 后预填弹框，状态默认 Next、topic 默认空、
+  // 经 cleanTitle 剥 #tag / #wikilink / #field 后预填弹框，状态默认 active、
   // 领域跑 inferDomain（task-capture 同源）。
   //
   // 删除走「悲观」：弹框 open 时不动 ideas-home.txt；仅在 captureMod.captureIdea 成功
@@ -1076,26 +1366,16 @@ class MiniflowPlugin extends Plugin {
       new Notice("闪念内容为空，无法创建任务", 2000);
       return;
     }
-    // paths 组：domainRoot / topicRoot 由配置给，缺键退回 _config.js 的默认
+    // paths 组：domainRoot 由配置给，缺键退回 _config.js 的默认
     // （读不到配置 = {}，_workflow.js 里 `|| DOMAINS_ROOT` 照样兜底）。
     const paths = ((await this.readConfigFile()).paths) || {};
-    const [rawDomainChoices, rawTopicChoices] = await Promise.all([
-      workflow.listDomainChoices(vault, paths),
-      workflow.listTopicChoices(vault, paths),
-    ]);
+    const rawDomainChoices = await workflow.listDomainChoices(vault, paths);
     const domainChoices = rawDomainChoices.map((c) => ({
       slug: c.slug,
       label: c.label,
       work: !!c.work,
       domain: c.domain || c.slug,
       keywords: c.workflow && Array.isArray(c.workflow.keywords) ? c.workflow.keywords : [],
-    }));
-    const topicChoices = rawTopicChoices.map((t) => ({
-      id: t.id,
-      label: t.label,
-      auto_keywords: Array.isArray(t.auto_keywords) ? t.auto_keywords : [],
-      auto_patterns: Array.isArray(t.auto_patterns) ? t.auto_patterns : [],
-      parent_id: t.parent_id || "",
     }));
     if (!domainChoices.length) {
       new Notice("领域数据未加载，无法创建", 2000);
@@ -1109,7 +1389,6 @@ class MiniflowPlugin extends Plugin {
       title: cleaned,
       domainChoice: infer.inferDomain(cleaned, domainChoices) || domainChoices[0],
       status: "active",
-      topic: "",
       domainLocked: false,
     };
 
@@ -1121,7 +1400,6 @@ class MiniflowPlugin extends Plugin {
       applyChipHighlight: ui.applyChipHighlight,
       ui,
       cleanTitle: naming.cleanTitle,
-      topicChoices,
       onSubmit: (rawInputTitle) => this.onConvertSubmit({
         rawInputTitle,
         state,
@@ -1137,9 +1415,6 @@ class MiniflowPlugin extends Plugin {
       }),
     });
     modal.open();
-    // 主题 chips 异步渲染：onOpen 时 topicChoices 已通过 opts 传入,首跑渲染;
-    // 后续 listTopicChoices 数据更新场景下可再调一次 renderTopicChips 重绘。
-    modal.renderTopicChips();
   }
 
   async onConvertSubmit({ rawInputTitle, state, modal, naming, task, walk, indexHelper, clipboard, captureMod, STATUS_LABELS, rawBlock }) {
@@ -1160,7 +1435,7 @@ class MiniflowPlugin extends Plugin {
         status: state.status,
         now: window.moment(),
         domain: domainChoice.domain,
-        topic: state.topic,
+        // 2026-11-23 砍 topic：不再传 topic（_task.js/_capture.js 两侧均已无该字段）。
       });
     } catch (e) {
       new Notice(`任务创建失败: ${String(e).slice(0, 160)}`, 4000);
@@ -1308,9 +1583,9 @@ class MiniflowSettingTab extends obsidian.PluginSettingTab {
     const LABELS = {
       yunxiao: ["云效 / qy 集成（本包未含）", "可选的外部工作项系统集成模块；开源包在导出时已裁掉该模块代码，此开关不产生效果"],
       indexMaintenance: ["文件索引维护", "打开或增删 folder 任务内文件时重写 README 文件索引段"],
-      requireShim: ["QuickAdd obsidian 模块注入", "停掉它 task-capture / task-edit / topic 三个弹框命令会失效"],
+      requireShim: ["QuickAdd obsidian 模块注入", "停掉它 task-capture / task-edit 两个弹框命令会失效"],
       tabTitle: ["任务 tab 标题", "folder 任务的 tab 标签显示任务目录名而不是 README"],
-      homeCards: ["Home 卡读面 api", "工作事务 / 闪念 / 云效卡取数与右栏自适应填满"],
+      homeCards: ["Home 卡读面 api", "事务 / 闪念 / 云效卡取数与右栏自适应填满"],
       launchClaude: ["▶ 启动 Claude", "Home 任务行尾按钮在任务根起 claude 会话"],
     };
     void (async () => {
@@ -1394,7 +1669,7 @@ class MiniflowSettingTab extends obsidian.PluginSettingTab {
         homePath: ["首页笔记", "task-finish 关掉 README 后回的那一页（未装 homepage 插件时直接开它）"],
         ideasFile: ["闪念文件", "Idea Capture 写入、Home 闪念块删除的同一个文件"],
         domainRoot: ["领域根", "domains/ 目录（各域的 flow.json 所在处）"],
-        topicRoot: ["主题根", "topics/ 目录（主题卡片）"],
+        domainRoot: ["领域根", "domains/ 目录（领域流配置）"],
       };
       const paths = await this.plugin.readPathsConfig();
       for (const [key, [name, desc]] of Object.entries(PATHS_LABELS)) {
@@ -1549,5 +1824,75 @@ function makeQuickAddApi(app) {
   };
 }
 
+
+// ============================================================
+// DefectCard：Home「🐞 预识别缺陷」卡（2026-11-23；同日改为一缺陷一文件）。
+//
+// 与 云效同步卡（本包未含） 同款：数据源是**另一个目录下的文件**（defects/），CLI 写它们不会让
+// Home.md 重渲染，所以自己挂 MarkdownRenderChild 注册重绘触发。块被移除/重渲染时
+// Obsidian 调 onunload，事件自动注销。渲染逻辑本体在 `MiniflowPlugin#renderDefectCard`。
+// ============================================================
+class DefectCard extends MarkdownRenderChild {
+  constructor(containerEl, plugin) {
+    super(containerEl);
+    this.plugin = plugin;
+    this.focusTimer = null;
+  }
+
+  async onload() {
+    // 目录路径的真源在 `_defect.js#DEFECT_DIR`——这里从模块取一次，**不硬编码第二份**
+    // （硬编码的常量改目录时会静默失配，卡片从此不再自动重绘）。
+    let defectDir = "";
+    try {
+      defectDir = (await this.plugin.loadModule(DEFECT_MODULE_PATH)).DEFECT_DIR || "";
+    } catch (_e) {
+      defectDir = "";
+    }
+    if (defectDir) {
+      const prefix = `${defectDir}/`;
+      const onVaultChange = (file) => {
+        if (file && String(file.path || "").startsWith(prefix)) this.render();
+      };
+      // **四条事件都要挂**：文件级数据源会新建 / 删除 / 改名，只挂 modify 会在
+      // 「create 后不刷新」上静默丢新缺陷单。
+      for (const evt of ["modify", "create", "delete", "rename"]) {
+        this.registerEvent(this.plugin.app.vault.on(evt, onVaultChange));
+      }
+    }
+    this.registerDomEvent(window, "focus", () => {
+      if (this.focusTimer) window.clearTimeout(this.focusTimer);
+      this.focusTimer = window.setTimeout(() => {
+        this.focusTimer = null;
+        this.render();
+      }, 500);
+    });
+    await this.render();
+  }
+
+  onunload() {
+    if (this.focusTimer) window.clearTimeout(this.focusTimer);
+    this.focusTimer = null;
+  }
+
+  // 串行化：台账 modify / 回焦点可能在首次渲染未完成时再次触发。若交给 renderDefectCard
+  // 并发跑两次，两次 `el.empty()` 与建 DOM 交错仍可能叠出残留。这里同一时刻只跑一次，
+  // 后到的合并成一次「跑完再来一遍」。
+  render() {
+    if (this._busy) {
+      this._pending = true;
+      return Promise.resolve();
+    }
+    this._busy = true;
+    return Promise.resolve(this.plugin.renderDefectCard(this.containerEl))
+      .catch(() => {})
+      .finally(() => {
+        this._busy = false;
+        if (this._pending) {
+          this._pending = false;
+          this.render();
+        }
+      });
+  }
+}
 
 module.exports = MiniflowPlugin;

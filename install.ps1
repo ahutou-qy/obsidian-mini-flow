@@ -385,21 +385,27 @@ function Invoke-Verify($Table, $Vault, $Shared) {
   # behavior.deliveryDomains / deliveryExcludeDomains 是各人自己的业务域名清单、paths 组
   # 是各机布局，真文件与 example 必然取值不同——比取值会把「按自己的 vault 填配置」报成漂移。
   # 守的是「加了键忘了同步另一边」，那才是会静默降级的错。
+  # 组名单取**两边出现过的全部顶层键**，不写死（2026-11-23 改）：此前硬编码
+  # modules/behavior/paths 三组，example 2026-11-22 新增 `i18n` 顶层组后，缺它的机器
+  # 照样报「键集合一致」——mac 那次就是这么漏掉的（与 install.sh 同款判据）。
   if ($Table.config) {
     $cfgShared = Resolve-FullPath $Shared $Table.config.shared
     $cfgVault = Resolve-FullPath $Vault $Table.config.vault
     if ((Test-Path -LiteralPath $cfgShared) -and (Test-Path -LiteralPath $cfgVault)) {
       $keySets = @{}
+      $topKeys = @{}
       $bad = $false
       foreach ($side in @(@('共享仓', $cfgShared), @('vault', $cfgVault))) {
         try {
           $json = Get-Content -LiteralPath $side[1] -Raw | ConvertFrom-Json
-          foreach ($g in @('modules', 'behavior', 'paths')) {
-            $names = @()
-            if ($json.PSObject.Properties.Name -contains $g) {
-              $names = @($json.$g.PSObject.Properties.Name | Sort-Object)
-            }
-            $keySets["$($side[0]):$g"] = ($names -join ',')
+          $names = @($json.PSObject.Properties.Name)
+          $topKeys[$side[0]] = $names
+          foreach ($g in $names) {
+            $sub = @()
+            if ($json.$g -is [System.Management.Automation.PSCustomObject]) {
+              $sub = @($json.$g.PSObject.Properties.Name | Sort-Object)
+            }   # 标量 / 数组没有键，按空参与比较
+            $keySets["$($side[0]):$g"] = ($sub -join ',')
           }
         } catch {
           Write-Warning "WARN 配置核对跳过：$($side[0]) 侧配置解析失败（$($_.Exception.Message)）"
@@ -408,7 +414,7 @@ function Invoke-Verify($Table, $Vault, $Shared) {
       }
       if (-not $bad) {
         $drift = @()
-        foreach ($g in @('modules', 'behavior', 'paths')) {
+        foreach ($g in (@($topKeys['共享仓']) + @($topKeys['vault']) | Sort-Object -Unique)) {
           if ($keySets["共享仓:$g"] -ne $keySets["vault:$g"]) { $drift += $g }
         }
         if ($drift.Count -eq 0) {

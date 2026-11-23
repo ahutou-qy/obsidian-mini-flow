@@ -173,79 +173,6 @@ function addMilestone(frontmatterStr, milestone) {
   return setMilestones(frontmatterStr, list);
 }
 
-// ---------- topic（主题关联，标量，2026-09-14 由 topics 列表收口为单值） ----------
-// 一个任务至多挂一个 topic：domain 担归口轴、标题通常担名物轴，残留交叉维度至多一个；
-// 多挂诱导标签囤积。存量 block `topics:\n  - "x"` 兼容读（取第一条），写回统一标量。
-function getTopic(frontmatterStr) {
-  const fm = String(frontmatterStr || "");
-  if (!fm) return "";
-  const lines = fm.split(/\r?\n/);
-  const idx = lines.findIndex((l) => /^topic\s*:/.test(l));
-  if (idx >= 0) {
-    const v = lines[idx].replace(/^topic\s*:\s*/, "").trim();
-    if (v) return cleanScalar(v);
-  }
-  return getTopicsLegacy(fm)[0] || "";
-}
-
-// 空串删字段；同时清掉历史 topics block。新值统一 JSON 双引号（id 可含空格/大写）。
-function setTopic(frontmatterStr, value) {
-  const fm = String(frontmatterStr || "").trim();
-  if (!fm) return fm;
-  let lines = fm.split(/\r?\n/);
-  // 先删历史 topics block，再按标量 domain 同款 replace-or-insert 处理。
-  const legacyRange = findTopicsRange(lines);
-  if (legacyRange) {
-    const [start, end] = legacyRange;
-    lines = [...lines.slice(0, start), ...lines.slice(end)];
-  }
-  const normalized = String(value || "").trim();
-  const idx = lines.findIndex((l) => /^topic\s*:/.test(l));
-  if (!normalized) {
-    if (idx === -1) return lines.join("\n").replace(/\n{3,}/g, "\n\n");
-    return [...lines.slice(0, idx), ...lines.slice(idx + 1)].join("\n").replace(/\n{3,}/g, "\n\n");
-  }
-  const serialized = `topic: ${JSON.stringify(normalized)}`;
-  if (idx >= 0) {
-    return [...lines.slice(0, idx), serialized, ...lines.slice(idx + 1)].join("\n");
-  }
-  const closingIdx = lines.lastIndexOf("---");
-  if (closingIdx < 0) return [...lines, "", serialized].join("\n");
-  lines.splice(closingIdx, 0, serialized);
-  return lines.join("\n");
-}
-
-// 历史 block/inline `topics: [...]` 只读兼容（task-edit 打开未迁移老任务时取值）。
-function findTopicsRange(lines) {
-  const start = lines.findIndex((l) => /^topics\s*:/.test(l));
-  if (start === -1) return null;
-  let end = lines.length;
-  for (let i = start + 1; i < lines.length; i++) {
-    if (/^[A-Za-z0-9_-]+\s*:/.test(lines[i])) { end = i; break; }
-    if (!/^\s*-\s/.test(lines[i])) { end = i; break; }
-  }
-  return [start, end];
-}
-
-function getTopicsLegacy(frontmatterStr) {
-  const fm = String(frontmatterStr || "");
-  if (!fm) return [];
-  const lines = fm.split(/\r?\n/);
-  const headerIdx = lines.findIndex((l) => /^topics\s*:/.test(l));
-  if (headerIdx === -1) return [];
-  const inline = lines[headerIdx].replace(/^topics\s*:\s*/, "").trim();
-  if (inline) {
-    // inline: topics: ["a", "b"] 或 topics: [a, b]
-    return inline.replace(/^\[|\]$/g, "").split(",").map((s) => cleanScalar(s)).filter(Boolean);
-  }
-  const out = [];
-  for (let i = headerIdx + 1; i < lines.length; i++) {
-    if (!/^\s*-\s/.test(lines[i])) break;
-    out.push(cleanScalar(lines[i].replace(/^\s*-\s+/, "")));
-  }
-  return out.filter(Boolean);
-}
-
 // ---------- 标量字段读取（通用） ----------
 //
 // 标量字段读取通用 helper（只读；schema = 单行标量，取不到返回 ""）。
@@ -272,13 +199,27 @@ function getDomain(frontmatterStr) {
   return getScalarField(frontmatterStr, "domain");
 }
 
-// `yunxiao_id`（结构化需求编号 `work-<数字>`，2026-11-18 起）：**写手是 外部同步 CLI 的云效
-// 物化**（tasks.rs 新建时写 + 存量回填），MF 的 capture / edit / finish / upgrade 都不写
+// `yunxiao_id`（**云效工作项 OID**，24 位 hex）：**写手是 外部同步 CLI 的云效物化
+// （tasks.rs 新建时写 + 存量回填），MF 的 capture / edit / finish / upgrade 都不写
 // 这个字段——所以这里只有读面、没有 set。读者是交付证据软闸（_finish.js#isDeliveryTask
-// 拿它判"这条任务是不是云效物化交付任务"）与 work commit 标题闸的对账链。
+// 拿它判"这条任务是不是云效物化交付任务"）。
 // 空串视为"未设"（手建任务本来就没有）。
+//
+// 别与下面的 `req_id` 混：本字段是 **OID**（`f04a0e91973c8709a7ef5cf048` 这种 24 位 hex），
+// `req_id` 才是给人读的**需求编号**（`work-5698`）。本函数旧注释把两者写成了同一个东西，
+// 2026-11-23 建 `defect` 组时实测两字段**并存**（各 8 条任务）后订正。
 function getYunxiaoId(frontmatterStr) {
   return getScalarField(frontmatterStr, "yunxiao_id");
+}
+
+// `req_id`（结构化需求编号 `work-<数字>`，2026-11-18 起）：**写手是 qy**（云效 serialNumber
+// 归一，`WORK-5668` → `work-5668`；存量在下一次 sync 刷新状态行时回填），MF 侧只有读面。
+// 读者此前只有 qy 的 commit 标题闸（标题里的 `需求ID:work-<n>` 与它对账，不一致拦推送）；
+// 2026-11-23 起 `defect` 组也读它——缺陷单 frontmatter 的 `req_id` 由它带出，**拿不到就留空**，
+// 绝不用本地临时号冒充 `work-<n>`（会撞同一个闸）。
+// 空串视为"未设"（手建任务 / 非云效任务没有）。
+function getReqId(frontmatterStr) {
+  return getScalarField(frontmatterStr, "req_id");
 }
 
 // 字段行范围查找通用 helper：找到 `^fieldName\s*:` 起，止于下一个
@@ -374,7 +315,7 @@ function setChain(frontmatterStr, chain) {
 //
 // 用途：标「这条我已经预判推进了，但卡在某个外部输入上」——缺什么、找谁、期望何时。
 // 写手是用户级 skill `dep-mark`（走本 helper，不另写一套 YAML 改写）；
-// 读面是 Home「🏠 工作事务」活跃卡（⛔ 徽标 + 灰副行；2026-11-19 起并卡，原独立 ⛔ 卡已删）。
+// 读面是 Home「🏠 事务」活跃卡（⛔ 徽标 + 灰副行；2026-11-19 起并卡，原独立 ⛔ 卡已删）。
 //
 // schema：标量字符串（一句话）。字段不存在 = 无外部依赖待解；空串 = 取消标注（删字段）。
 function getExternalDep(frontmatterStr) {
@@ -387,7 +328,7 @@ function getExternalDep(frontmatterStr) {
   return v ? cleanScalar(v) : "";
 }
 
-// 空串删字段（取消标注）；有值则 replace-or-insert，写法同 topic 标量。
+// 空串删字段（取消标注）；有值则 replace-or-insert。
 // 调用方可能传**带围栏**的整段 frontmatter，也可能只传内容段——两种都支持：
 // 有闭合围栏就插在围栏前，没有就追加到末尾。
 function setExternalDep(frontmatterStr, value) {
@@ -410,19 +351,58 @@ function setExternalDep(frontmatterStr, value) {
   return lines.join("\n");
 }
 
+// ---------- 通用标量字段写入（2026-11-23，CLI 改域用） ----------
+//
+// 给"MF 侧有写手、但此前只有手改"的标量字段用。目前唯一调用方是 CLI
+// `mf.js set --domain`（`_task-meta-ops.js`）；读面仍是 getDomain / getScalarField。
+// 语义与 setExternalDep 一致：空串删字段，有值 replace-or-insert，
+// 有闭合围栏就插在围栏前。
+function setScalarField(frontmatterStr, fieldName, value) {
+  const fm = String(frontmatterStr || "").trim();
+  if (!fm) return fm;
+  const lines = fm.split(/\r?\n/);
+  const normalized = String(value == null ? "" : value).trim();
+  const idx = lines.findIndex((l) => new RegExp(`^${fieldName}\\s*:`).test(l));
+  if (!normalized) {
+    if (idx === -1) return lines.join("\n").replace(/\n{3,}/g, "\n\n");
+    return [...lines.slice(0, idx), ...lines.slice(idx + 1)].join("\n").replace(/\n{3,}/g, "\n\n");
+  }
+  const serialized = `${fieldName}: ${normalized}`;
+  if (idx >= 0) {
+    return [...lines.slice(0, idx), serialized, ...lines.slice(idx + 1)].join("\n");
+  }
+  const closingIdx = lines.lastIndexOf("---");
+  if (closingIdx < 0) return [...lines, serialized].join("\n");
+  lines.splice(closingIdx, 0, serialized);
+  return lines.join("\n");
+}
+
+// domain 的写面（CLI `mf.js set --domain`；GUI Task Edit 仍不带领域 UI）。
+// 注意：正文导航行不在这里改——它由调用方按 `<label> 规则库` 单独重写（见
+// `_task-meta-ops.js`），本函数只动 frontmatter 单字段。
+function setDomain(frontmatterStr, value) {
+  return setScalarField(frontmatterStr, "domain", value);
+}
+
 module.exports = {
   FRONTMATTER_RE,
   getMilestones,
   setMilestones,
   addMilestone,
   serializeMilestone,
-  getTopic,
-  setTopic,
   getDomain,
+  getScalarField,
   getYunxiaoId,
+  getReqId,
   getChain,
   setChain,
   serializeChain,
   getExternalDep,
   setExternalDep,
+  setScalarField,
+  setDomain,
+  // 2026-11-23：缺陷单（`_defect.js`）序列化标量要判「是否需要引号」——标题/模块名常含
+  // 中文与全角冒号，不包会被 YAML 截断。导出这两个内部函数，别在 `_defect.js` 复制一份。
+  needsQuote,
+  escapeDoubleQuoted,
 };

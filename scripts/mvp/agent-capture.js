@@ -88,16 +88,6 @@ async function domainChoices(vault) {
   }));
 }
 
-async function topicChoices(vault) {
-  const raw = await workflow.listTopicChoices(vault);
-  return raw.map((t) => ({
-    id: t.id,
-    label: t.label,
-    parent_id: t.parent_id || "",
-    auto_keywords: Array.isArray(t.auto_keywords) ? t.auto_keywords : [],
-  }));
-}
-
 async function propose(vault, { title, now }) {
   const cleanedTitle = naming.cleanTitle(title);
   if (!cleanedTitle) die(3, "任务名为空（cleanTitle 后为空）");
@@ -128,7 +118,6 @@ async function propose(vault, { title, now }) {
     monthFolder,
     targetFolder,
     conflict,
-    topics: await topicChoices(vault),
   };
 }
 
@@ -149,11 +138,7 @@ async function create(vault, { now, payload }) {
   const status = payload.status == null || payload.status === "" ? "active" : String(payload.status);
   if (!CAPTURE_STATUSES.has(status)) die(3, `status 非法：${status}（capture 只产 active）`);
 
-  let topic = payload.topic == null ? "" : String(payload.topic).trim();
-  if (topic && !vault.getAbstractFileByPath(`flow/data/topics/${topic}.md`)) {
-    die(3, `topic 不存在：flow/data/topics/${topic}.md`);
-  }
-
+  // 2026-11-23 砍 topic：payload.topic 已下线（不再校验、不再落 frontmatter）。
   const research = typeof payload.research === "string" ? payload.research : "";
 
   const result = await capture.captureIdea(vault, { naming, task: taskHelpers, config: CONFIG }, {
@@ -161,7 +146,6 @@ async function create(vault, { now, payload }) {
     status,
     now,
     domain: choice.domain,
-    topic,
     research,
   });
 
@@ -176,7 +160,6 @@ async function create(vault, { now, payload }) {
     domain: choice.domain,
     domainLabel: choice.label,
     status,
-    topic,
     created: result.created,
   };
 }
@@ -212,4 +195,6 @@ if (require.main === module) {
   });
 }
 
-module.exports = { main, propose, create, parseNow, VAULT_ROOT, CliError };
+// readJsonSource 导出给 `defect` 组复用（2026-11-23）：`--json <file|->` 的读取与解析只此一份，
+// 新子命令不许再写第二份（stdin / 文件两种形态 + 解析失败 code 3 的语义都在这里）。
+module.exports = { main, propose, create, parseNow, readJsonSource, VAULT_ROOT, CliError };

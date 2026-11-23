@@ -140,7 +140,7 @@ function nameOfPath(path) {
   return String(path || "").split("/").slice(-2, -1)[0] || String(path || "");
 }
 
-// 活跃卡的**节点集合**：capture 行 → 展示节点。Home「🏠 工作事务」卡与 CLI `mf.js query`
+// 活跃卡的**节点集合**：capture 行 → 展示节点。Home「🏠 事务」卡与 CLI `mf.js query`
 // 共用这一份，所以「两边集合对得上」是构造保证的，不靠事后对账。
 // 口径（照搬下沉前的 Home 块，别顺手改）：
 //   - 无 linkTarget 的行丢弃（定位不到任务文件）；

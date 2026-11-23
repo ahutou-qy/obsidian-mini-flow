@@ -15,6 +15,12 @@
 //   delete  --path <p>                              删任务：留底行降级 → 清双链 → 删文件（无确认）
 //   query   [--status active|finish|all] [--domain <slug>] [--yunxiao] [--dep]
 //                                                   读面：任务集合 / 字段（判据与 Home 卡同源）
+//   rule    <list|capture|validate|promote|deprecate>  规则库操作（详见 _rule-ops.js）
+//   defect  <create|list|show|decide>    预识别缺陷台账（AI 预分析发现缺陷时的唯一写面，
+//                                        禁改码；详见 _defect-ops.js 与 _defect.js）
+//   idea    --text "<闪念>"                         闪念写入 flow/ideas-home.txt（再跑 miniflow:ideas-reload 重绘）
+//   rename  --path <p> --title "<新标题>"            改标题：H1 + 磁盘名 + 月度行 alias + 全库链接
+//   set     --path <p> --domain <slug>               换域（frontmatter + 导航行）；--topic 已下线
 //
 // 输出：**stdout 恒为 JSON**（成功 `{"ok":true,...}`；失败 `{"ok":false,"error":...}` 走 stderr），
 // 退出码沿用 agent-capture：0 成功 / 2 usage / 3 数据冲突或解析失败 / 4 IO 或未预期异常。
@@ -41,6 +47,10 @@ const { createFsVault } = require("./_fs-vault.js");
 const agentCapture = require("./agent-capture.js");
 const { setStatus } = require("./_set-status.js");
 const { deleteTask } = require("./_delete-task.js");
+const { ruleCommand } = require("./_rule-ops.js");
+const { defectCommand } = require("./_defect-ops.js");
+const { ideaAdd } = require("./_idea-ops.js");
+const { taskMetaCommand } = require("./_task-meta-ops.js");
 const yamlHelpers = require(path.join(MINI, "_yaml.js"));
 const lineHelpers = require(path.join(MINI, "_capture-line.js"));
 const homeFields = require(path.join(MINI, "_home-fields.js"));
@@ -72,7 +82,7 @@ function resolveTaskDir(raw, root = VAULT_ROOT) {
   return path.resolve(abs);
 }
 
-// query 的读面。active 走 `_home-fields.js#activeNodes`（与 Home「🏠 工作事务」卡同一份
+// query 的读面。active 走 `_home-fields.js#activeNodes`（与 Home「🏠 事务」卡同一份
 // 成形判据，集合由构造保证一致）；finish/all 按 capture 行状态取，**与 Home「✅ 已完成」卡
 // 口径不同**（那张卡按 README milestones 聚合、含时段追溯），别把两者的数字直接对比。
 async function query(vault, args) {
@@ -204,9 +214,33 @@ async function run(argv, { vaultRoot = VAULT_ROOT, vault = createFsVault(VAULT_R
     }
     case "query":
       return query(vault, rest);
+    case "rule":
+      // 规则库四个动作 + 一个读面（list）。判据与写面复用 `_rule.js` /
+      // `_rule-review.js`（与 Obsidian 侧那四条交互命令同一份），本文件不另写一套。
+      return ruleCommand(vault, rest, { vaultRoot });
+    case "defect":
+      // 预识别缺陷台账：AI 预分析阶段发现缺陷时的唯一写面（禁改码，见 vault 根
+      // CLAUDE.md「预识别缺陷处理」段）。条目骨架/解析/状态流转在 `_defect.js`。
+      return defectCommand(vault, rest, { vaultRoot });
+    case "idea":
+      // 闪念写入，落点与格式同 `idea-capture.js`（idea-capture.js 的 paths.ideasFile）。
+      return ideaAdd(vault, rest, { vaultRoot });
+    case "rename":
+    case "set":
+      // Task Edit 的 CLI 面：rename = 改标题三处写；set = 挂主题已下线、换域。
+      return taskMetaCommand(vault, [sub, ...rest], { vaultRoot });
     default:
-      die(2, "usage: mf.js <propose|create|finish|reopen|progress|delete|query> "
-        + "[--title t | --json f | --path p [--text t] | --status s --domain d --yunxiao --dep]");
+      die(2, "usage: mf.js <propose|create|finish|reopen|progress|delete|query|rule|defect|idea|rename|set> "
+        + "[--title t | --json f | --path p [--text t] | --status s --domain d --yunxiao --dep]\n"
+        + "       mf.js rule <list|capture|validate|promote|deprecate> "
+        + "[--rule p | --title t --task p | --domain d] [--statement s | --tags a,b | "
+        + "--supersedes p1,p2 | --superseded-by p1,p2 | --note n | --reason r] [--now YYYY-MM-DD]\n"
+        + "       mf.js defect <create|list|show|decide> "
+        + "[--json f | --status s --path a|b --risk P0|P1|P2 --task p | --id PD-... "
+        + "[--choice include|defer|archive --by s --note s]] [--now YYYY-MM-DD]\n"
+        + "       mf.js idea --text \"<闪念>\"\n"
+        + "       mf.js rename --path p --title t\n"
+        + "       mf.js set --path p --domain <slug>");
   }
 }
 

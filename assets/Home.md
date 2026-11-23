@@ -8,9 +8,9 @@ cssclasses:
 
 > [!cols]
 >
->> [!tasks] 🏠 工作事务
+>> [!tasks] 🏠 事务
 >> ```dataviewjs
->> // 🟢 活跃（「🏠 工作事务」卡）：当前还在办的任务，按领域分组、按链缩进（第 N/M 步）。
+>> // 🟢 活跃（「🏠 事务」卡）：当前还在办的任务，按领域分组、按链缩进（第 N/M 步）。
 >> //
 >> // ---------- 数据源（2026-11-18 起直读 md，不再走 Dataview 的 dv.pages） ----------
 >> //   - 活跃集合 = 月度 capture 行的 `#active`（含历史别名 #now/#next），滤 `#finish` 与
@@ -25,6 +25,11 @@ cssclasses:
 >> //     `api.homeDepTasks()` 求差集给一行兜底提示——有 dep 却不在本卡活跃集合里的还有几条。
 >> //   - 领域显示名与「工作域优先」排序走 `api.homeDomainLabels()`（flow/data/domains/*/flow.json，
 >> //     插件侧缓存、改 flow.json 才失效——原先每次渲染串行读 7 个文件，Home 三张卡共读 21 次）。
+>> //   - 组内排序（2026-11-23）：**被外部依赖卡住的排本分组最后**（byOrder = 卡住 → step → title
+>> //     中文序）。「卡住」按**链级**判（规则 B）：自己带 external_dep，或活跃子节点**全部**卡住——
+>> //     有可动作的子任务就不沉，只把整条链推不动的搬到底（叶节点退化成「自己 dep」）。根级把
+>> //     独立任务与「父不在活跃集」的链组一起排（链组 = 父 frontmatter 的 dep 或子任务全卡）。
+>> //     领域分组之间不变，仍是工作域优先 → label 中文序。
 >> //
 >> // ---------- 为什么脱离 Dataview ----------
 >> // `dv.pages` 依赖会让 flow/data 下**任何** md 变动（改任务正文、写 capture 行、索引插件
@@ -37,18 +42,35 @@ cssclasses:
 >> // **指纹没变就不动 DOM**。最高频的写入是改任务正文（写进展 bullet），那种改动不该让整卡
 >> // 重绘；指纹覆盖渲染所需的全部输入。真变了才重建：离屏建好再一次挂上（原子替换，无空白帧）。
 >> //
->> // ---------- 行内 ▶️ 按钮（2026-11-19） ----------
+>> // ---------- 行内 ▶️ 按钮（2026-11-19）+ 会话状态徽标（2026-11-23） ----------
 >> // 每条任务行尾一个 ▶️，在该任务根起一个全新 claude 会话——补的是「人还在 Home 上、没打开
 >> // 任务 README」这个场景：Commander pageHeader 那颗 Open Claude 取的是**活动笔记**，在
 >> // Home.md 上按它 cwd 落 vault 根、不是任务目录。启动实现单源在
 >> // flow/scripts/quickadd/mini/_launch-claude.js（QuickAdd 宏 Open Claude 同一份），经插件
 >> // api.launchClaude(path) 调，块里只传 linkTarget 路径、不写路径规则。
->> // 按钮**不进指纹**（它不是渲染输入，画不画都不该让整卡重绘）；也不探测该任务是否已有
->> // claude 在跑——探测到就得在每次开/关终端时重绘整卡，而「重复会话」本就靠人避免
->> // （两个 agent 同改一棵树会撞工作目录互斥，见 _launch-claude.js 边界段）。
+>> // 按钮**不进指纹**（它不是渲染输入，画不画都不该让整卡重绘）。
 >> // 形态：彩色 emoji + 闪念三键同款（0.95em 裸字无边框），但**常驻淡显** .55→hover 1
 >> // ——每行只一颗、又是本功能唯一入口，藏起来等于没有。档位单源在
 >> // .obsidian/snippets/miniflow-home.css 的「卡内统一档」段（档 5），改形态去那里改。
+>> //
+>> // 2026-11-23 起行末多一颗**会话状态 chip**（🟢 运行中 / 💤 空闲 / ⏳ 等你输入或授权），
+>> // 读本机 Claude Code 的实时会话注册表（`~/.claude/sessions/<pid>.json`）——走插件
+>> // api.homeSessions(paths)，判据单源在 flow/scripts/quickadd/mini/_session-probe.js。
+>> // 口径：**只按会话 cwd**（落在该任务根或其子目录内即命中）；shell 档并入 idle（同义）。
+>> // **这推翻了 2026-11-19「不探测该任务是否已有 claude 在跑」的决策**——当时不探测是因为
+>> // 一旦探测，每次开/关终端都得整卡重绘；现在徽标只把 {count,status} 放进指纹（状态没变
+>> // 就不动 DOM），且数据源在 vault 之外（不 bump 索引、不引起闪烁），代价可以接受。
+>> // chip **可点**：点开列出该任务的活会话（pid / 名称 / 状态 / 启动时间），走
+>> // api.showSessionPanel（面板在插件侧，Modal 才有稳定外观）。
+>> // 会话状态**进指纹**（状态变了就该重画），因此另加 25 秒轮询——focus 事件只覆盖「切窗口
+>> // 回来」，覆盖不了「终端里另一个 agent 跑完了」。
+>> //
+>> // ---------- 2026-11-23 卡面两项调整 ----------
+>> // ① chip 形态改成**描边小标签**（与预缺陷卡的风险徽标同款，CSS 共用一份「卡内 chip」段），
+>> //    位置在**行末**（▶️ 之后）——行序：标题 → ▶️ → chip。
+>> // ② **任务标题不跨行**：CSS 把 body 与其直接子级 p 改成 flex 容器，链前缀与 ⛔ 成为独立
+>> //    flex item（永不变行），链接超长出省略号；全文靠 hover（li.title，120 字）。
+>> //    DOM 归属不变（⛔ 仍在 body 内），另一个任务的验证脚本不受影响。
 >> //
 >> // ---------- 历史坑（2026-11-12 那轮踩过，改这块前先读 flow/CLAUDE.md） ----------
 >> //   - 所有 await 收在取数阶段，DOM 构建全同步：散着 await 的写法在重绘时只剩空卡。
@@ -92,7 +114,9 @@ cssclasses:
 >>   const render = (parentEl, text, opts) => {
 >>     const claudePath = (opts && opts.claudePath) || "";
 >>     const li = parentEl.createEl("li");
->>     li.title = String(text).slice(0, 90);
+>>     // hover 提示长度 120 字（2026-11-23 从 90 放宽）：标题在卡面上恒一行、超长出省略号，
+>>     // 全文只能从这里看——提示太短就等于没提示。
+>>     li.title = String(text).slice(0, 120);
 >>     const row = li.createDiv({ cls: "miniflow-active-row" });
 >>     const body = row.createDiv({ cls: "miniflow-active-body" });
 >>     const fallback = () => {
@@ -122,6 +146,26 @@ cssclasses:
 >>       });
 >>       row.appendChild(btn);
 >>     }
+>>     // 会话状态 chip（2026-11-23）：本机是否开着该任务的 claude 会话。数据来自
+>>     // api.homeSessions（插件读本机会话注册表），块里只画字符、只传路径，不判命中。
+>>     // 形态 = **描边小标签**（与预缺陷卡的风险徽标同款，CSS 在「卡内 chip」段共用一份）；
+>>     // 位置 = **行末**（▶️ 之后，2026-11-23 面板定）。
+>>     // 徽标可点 → 插件面板列出该任务的活会话（Modal 在插件侧才有稳定外观）。
+>>     const sess = (opts && opts.session) || null;
+>>     if (sess && sess.count > 0) {
+>>       const badge = document.createElement("button");
+>>       badge.className = `miniflow-active-sess miniflow-active-sess-${sess.chip || "idle"}`;
+>>       badge.type = "button";
+>>       badge.textContent = sess.count > 1 ? `${sess.icon || "💤"}×${sess.count}` : (sess.icon || "💤");
+>>       badge.title = `本机有 ${sess.count} 个 claude 会话（${sess.label || sess.status}）——点击查看`;
+>>       badge.addEventListener("click", (ev) => {
+>>         ev.preventDefault();
+>>         ev.stopPropagation();
+>>         if (typeof api.showSessionPanel !== "function") return;
+>>         Promise.resolve(api.showSessionPanel(claudePath)).catch(() => {});
+>>       });
+>>       row.appendChild(badge);
+>>     }
 >>     return li;
 >>   };
 >>
@@ -138,21 +182,37 @@ cssclasses:
 >>     // 不按 README finish 里程碑过滤）已下沉到 _home-fields.js#activeNodes，
 >>     // 与 CLI `mf.js query --status active` 同一份——这里不再自己拼（2026-11-19 段 3）。
 >>
+>>     // 本机会话（2026-11-23）：徽标数据源。插件没这个方法（旧版本 / 验证脚本的桩）时按
+>>     // 空处理，卡面照常渲染、不出徽标——与 ▶️ 按钮同款降级。
+>>     const sess = (typeof api.homeSessions === "function" && nodes.length)
+>>       ? await api.homeSessions(nodes.map((n) => n.path))
+>>       : {};
+>>
 >>     // 兜底差集：有 dep、却不在本卡活跃集合里的任务（capture 行 #finish / 带 #yunxiao / 无
 >>     // capture 行——原 ⛔ 卡多收的三类）。换口径收窄不能静默，卡尾给一行灰字提示条数。
 >>     const activeSet = new Set(nodes.map((n) => n.path));
 >>     const depOutside = depRows.filter((r) => !activeSet.has(r.path));
 >>
->>     // 父任务多数已结案、不在活跃集合里，单独读它的结案状态，给补渲染的父标题行加「· 已结案」。
+>>     // 父任务多数已结案、不在活跃集合里，单独读它的结案状态（补渲染的父标题行加「· 已结案」）
+>>     // 与 external_dep（2026-11-23：链组按父任务的 dep + 子任务链级继承参与「靠后」排序）。
 >>     const parentPaths = [...new Set(nodes.map((n) => n.parent).filter(Boolean))];
 >>     const parentFields = await Promise.all(parentPaths.map((p) => api.homeTaskFields(p)));
 >>     const parentFinished = {};
->>     parentPaths.forEach((p, i) => { parentFinished[p] = !!(parentFields[i] && parentFields[i].finished); });
+>>     const parentDep = {};
+>>     parentPaths.forEach((p, i) => {
+>>       parentFinished[p] = !!(parentFields[i] && parentFields[i].finished);
+>>       parentDep[p] = !!(parentFields[i] && parentFields[i].externalDep);
+>>     });
 >>
 >>     // 指纹 = 渲染的全部输入。没变就不动 DOM（改任务正文是最高频写入，不该让整卡重绘）。
->>     // nodes 已含 dep（改活跃任务的 dep 文案 → 该行副行跟着变）；depOutside.length 覆盖集合
->>     // 外那几条——它们只影响卡尾条数、文案不可见，不必为改文案整卡重绘。
->>     const fp = JSON.stringify([labels, parentFinished, nodes, depOutside.length]);
+>>     // nodes 已含 dep（改活跃任务的 dep 文案 → 该行副行跟着变）；parentDep 决定链组排位
+>>     // （改父任务 dep → 顺序变，必须进指纹）；depOutside.length 覆盖集合外那几条——它们只
+>>     // 影响卡尾条数、文案不可见，不必为改文案整卡重绘。
+>>     // 会话状态**进指纹**（2026-11-23）：徽标就是为它存在的，状态变了就该重画。只取
+>>     // {count,status}——icon 是 status 的派生、明细不影响渲染（会话名换了不重画）。
+>>     const sessFp = {};
+>>     for (const k of Object.keys(sess)) sessFp[k] = { count: sess[k].count, status: sess[k].status };
+>>     const fp = JSON.stringify([labels, parentFinished, parentDep, nodes, depOutside.length, sessFp]);
 >>     if (fp === lastFp) return;
 >>     lastFp = fp;
 >>
@@ -170,13 +230,38 @@ cssclasses:
 >>       holder.createEl("h3", { text: domLabel(labels, grp.d) });
 >>       const list = holder.createEl("ul");
 >>       const activePaths = new Set(grpNodes.map((n) => n.path));
->>       const byStep = (a, b) => (a.step - b.step)
+>>       // 排序（2026-11-23）：**被外部依赖卡住的沉到本分组最后**，其余保持 step → title 中文序。
+>>       // 「卡住」按链级判（规则 B）：自己带 dep = 卡住；否则**活跃子节点全部卡住**才算卡住——
+>>       // 有可动作的子任务就不沉，只把「整条链推不动」的搬到底。叶节点退化成「自己 dep」。
+>>       // 不拆「等待外部」独立段（2026-11-19 才把独立 ⛔ 卡并进来，拆回去会把链劈成两卡）。
+>>       const childrenOf = (path) => grpNodes.filter((n) => n.parent === path);
+>>       const blockedMemo = new Map();
+>>       // seen 防环：frontmatter 的 parent 是人手写的，成环时不让递归打转。
+>>       const blockedOf = (n, seen = new Set()) => {
+>>         if (blockedMemo.has(n.path)) return blockedMemo.get(n.path);
+>>         if (n.dep) { blockedMemo.set(n.path, true); return true; }
+>>         if (seen.has(n.path)) return false;
+>>         seen.add(n.path);
+>>         const ks = childrenOf(n.path);
+>>         const blocked = ks.length > 0 && ks.every((k) => blockedOf(k, seen));
+>>         seen.delete(n.path);
+>>         blockedMemo.set(n.path, blocked);
+>>         return blocked;
+>>       };
+>>       const isBlocked = (n) => blockedOf(n, new Set());
+>>       for (const n of grpNodes) isBlocked(n); // 先把 memo 焐热，比较器里不再递归
+>>       const byOrder = (a, b) => (isBlocked(a) ? 1 : 0) - (isBlocked(b) ? 1 : 0)
+>>         || (a.step - b.step)
 >>         || String(a.title).localeCompare(String(b.title), "zh");
->>       const kidsOf = (path) => grpNodes.filter((n) => n.parent === path).sort(byStep);
+>>       const kidsOf = (path) => childrenOf(path).sort(byOrder);
 >>
 >>       const renderNode = (node, parentEl) => {
 >>         const prefix = node.step ? `第 ${node.step}${node.total ? "/" + node.total : ""} 步 · ` : "";
->>         const li = render(parentEl, prefix + linkTo(node.path, node.title) + (node.dep ? " ⛔" : ""), { claudePath: node.path });
+>>         const blocked = isBlocked(node);
+>>         const li = render(parentEl, prefix + linkTo(node.path, node.title) + (blocked ? " ⛔" : ""), { claudePath: node.path, session: sess[node.path] });
+>>         // 被动阻塞（子任务全卡、自己没 dep）也要能看出为什么排到组尾——⛔ 后补一句 title 提示。
+>>         // 标题本身也留在提示里（卡面上已出省略号，全文只能从这里看）。
+>>         if (blocked && !node.dep) li.title = `${String(node.title).slice(0, 120)} · 子任务全部卡在外部依赖`;
 >>         // dep 完整显示成灰色副行（不用 hover）：文案 30–40 字，藏起来就丢了「找谁」这个 payload。
 >>         if (node.dep) li.createEl("div", { text: node.dep, cls: "miniflow-active-dep" });
 >>         const kids = kidsOf(node.path);
@@ -191,19 +276,38 @@ cssclasses:
 >>       const roots = grpNodes.filter((n) => !(n.parent && activePaths.has(n.parent)));
 >>       const chainGroups = {};
 >>       const standalone = [];
->>       for (const n of roots.sort(byStep)) {
+>>       for (const n of roots.sort(byOrder)) {
 >>         // 进这里的节点，其父要么为空、要么不在本分组活跃集合（带 dep 的父任务 2026-11-19 起
 >>         // 已进 nodes，子任务走上面 renderNode 的 kidsOf 挂它下面，不再落到这）。父已结案 /
 >>         // 不在活跃集合时仍补渲染它的标题行，链不断。
 >>         if (n.parent) (chainGroups[n.parent] ||= []).push(n);
 >>         else standalone.push(n);
 >>       }
->>       for (const node of standalone) renderNode(node, list);
->>       for (const parentPath of Object.keys(chainGroups)) {
->>         const done = parentFinished[parentPath] ? " · 已结案" : "";
->>         const li = render(list, `${linkTo(parentPath, nameOfPath(parentPath))}${done}`);
+>>       // 根级统一排序（2026-11-23）：独立任务与链组一起按「是否卡住 → 独立优先 → step → title」排。
+>>       // 分开渲染的话「卡住的独立任务」会压在「没卡住的链组」上面，靠后就只落实一半。
+>>       // 链组（父不在活跃集）没有节点可走 blockedOf：父自己的 dep 取 frontmatter（parentDep），
+>>       // 再按同一条链级规则继承——活跃子任务全部卡住，链组也算卡住。
+>>       const rootEntries = [];
+>>       for (const n of standalone) rootEntries.push({ blocked: isBlocked(n), chain: 0, step: n.step, title: n.title, node: n });
+>>       for (const p of Object.keys(chainGroups)) {
+>>         const kids = chainGroups[p];
+>>         rootEntries.push({
+>>           blocked: !!parentDep[p] || kids.every((k) => isBlocked(k)),
+>>           chain: 1, step: 0, title: nameOfPath(p), parent: p,
+>>           passive: !parentDep[p],
+>>         });
+>>       }
+>>       rootEntries.sort((a, b) => (a.blocked ? 1 : 0) - (b.blocked ? 1 : 0)
+>>         || (a.chain - b.chain)
+>>         || (a.step - b.step)
+>>         || String(a.title).localeCompare(String(b.title), "zh"));
+>>       for (const e of rootEntries) {
+>>         if (!e.chain) { renderNode(e.node, list); continue; }
+>>         const done = parentFinished[e.parent] ? " · 已结案" : "";
+>>         const li = render(list, `${linkTo(e.parent, nameOfPath(e.parent))}${done}${e.blocked ? " ⛔" : ""}`);
+>>         if (e.blocked && e.passive) li.title = `${nameOfPath(e.parent)} · 子任务全部卡在外部依赖`;
 >>         const sub = li.createEl("ul");
->>         for (const node of chainGroups[parentPath].sort(byStep)) renderNode(node, sub);
+>>         for (const node of chainGroups[e.parent].sort(byOrder)) renderNode(node, sub);
 >>       }
 >>     }
 >>
@@ -227,7 +331,7 @@ cssclasses:
 >>     if (timer) clearTimeout(timer);
 >>     timer = setTimeout(() => {
 >>       timer = null;
->>       repaint().catch((e) => console.warn("[home] 工作事务卡重绘失败:", e));
+>>       repaint().catch((e) => console.warn("[home] 事务卡重绘失败:", e));
 >>     }, 300);
 >>   };
 >>   const onVault = (file) => {
@@ -241,9 +345,15 @@ cssclasses:
 >>   ];
 >>   const onFocus = () => schedule();
 >>   window.addEventListener("focus", onFocus);
+>>   // 25 秒轮询会话状态（2026-11-23）：徽标要在「终端里另一个 agent 跑完了」这种**没人切
+>>   // 窗口**的场景也能更新，focus 事件覆盖不了那类变化。轮询只读几个小文件，指纹没变
+>>   // 不重绘，代价可忽略。
+>>   const poll = (component && component.register && typeof window.setInterval === "function")
+>>     ? window.setInterval(schedule, 25000) : null;
 >>   if (component && component.register) {
 >>     component.register(() => {
 >>       if (timer) clearTimeout(timer);
+>>       if (poll) window.clearInterval(poll);
 >>       for (const r of refs) app.vault.offref(r);
 >>       window.removeEventListener("focus", onFocus);
 >>     });

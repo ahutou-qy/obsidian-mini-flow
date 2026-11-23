@@ -66,7 +66,7 @@ async function appendCaptureLine(vault, monthFile, { linkText, sourceAnchorId, s
 // title = 任务名（文件名）；status = active（capture 只产活跃态，完成由 task-finish 推进）。
 // research = 可选正文，建完写进 README `### 调研` 小节末尾（AI 侧的对话上下文走这里）。
 // 2026-11-16 起不再收 isWork / kind：两者都由 domain 的 flow.json 派生，不落 frontmatter。
-async function captureIdea(vault, helpers, { title, status, now, domain, topic, research }) {
+async function captureIdea(vault, helpers, { title, status, now, domain, research }) {
   const { buildFileName, findUniquePath } = helpers.naming;
   // 文件名上限从注入的 config 取（调用方加载 `_config.js` 后放进 helpers.config）。
   // 没注入就 undefined → `_naming.js` 用 MAX_FILENAME_LENGTH 兜底。**建任务与改名/升级
@@ -101,7 +101,7 @@ async function captureIdea(vault, helpers, { title, status, now, domain, topic, 
     sourceFile: monthFile.basename,
     sourceAnchor: `#^${sourceAnchorId}`,
     domain: domain || null,
-    topic: topic ? String(topic).trim() : "",
+    // 2026-11-23 砍 topic：不再传 topic（_task.js 已无该形参）。
   });
   const readme = await vault.create(readmePath, readmeBody);
 

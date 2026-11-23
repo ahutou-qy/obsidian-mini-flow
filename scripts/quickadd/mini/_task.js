@@ -304,8 +304,7 @@ function refsBlock(work, withExamples) {
 // 不用区分"原生 folder""升级 folder"。事件类型已删，README 不再带 event；状态里程碑
 // 写入 frontmatter milestones 数组（见 flow/scripts/quickadd/mini/_yaml.js）。
 //
-// topic 字段：可选关联的单个长期主题卡 id（标量，2026-09-14 由 topics 列表收口），
-// 与 topic.js auto_links 联动召回。空串不输出该字段。
+// 2026-11-23 砍 topic：domain 与 topic 只保留 domain，本函数不再产 topic 字段/导航行。
 //
 // 2026-11-16 frontmatter 精简：删除 kind / code_locs / refs / created / tags 五个字段
 // ——kind 与 tags 三行全是 domain 的派生副本、零读者；code_locs / refs 无生产写手也无
@@ -328,35 +327,30 @@ async function domainMeta(vault, slug) {
 
 // 任务 README frontmatter `source` 字段与正文"来源"行共用的 wikilink 拼法。
 // 单独抽出便于 Node 单测覆盖（`node --test _task.test.js`）。
-// 任务 README 在 `flow/data/YYYY/Qn/MM/<dir>/` 视角，capture 月度文件在
-// `flow/data/YYYY/Qn/` 父级，必须加 `../` 前缀。vault 根不放月度 capture 文件
-// （保持"日期为存储主轴"单一真源），所以不能省略 `../`。
+// 任务 README 在 `flow/data/YYYY/Qn/MM/<dir>/README.md`：`../` 只上溯到 `Qn/MM/`，
+// 而 capture 月度文件在 `flow/data/YYYY/Qn/ideas-YYYY-MM.md`——**差一级，要 `../../`**。
+// vault 根不放月度 capture 文件（保持"日期为存储主轴"单一真源），所以不能省略前缀。
+// 2026-11-22 修：原写法只加 `../`（把 README 视角误当成 `Qn/MM/`），mac 侧实测来源是红链。
 function buildSourceLink(sourceFile, sourceAnchor) {
-  return sourceFile ? `[[../${sourceFile}${sourceAnchor || ""}]]` : "";
+  return sourceFile ? `[[../../${sourceFile}${sourceAnchor || ""}]]` : "";
 }
 
-async function buildFolderReadme({ vault, title, created, sourceFile, sourceAnchor, domain, topic }) {
+async function buildFolderReadme({ vault, title, created, sourceFile, sourceAnchor, domain }) {
   // sourceFile 是 capture 月度文件名（如 `ideas-2026-10`），月度文件位于
-  // `flow/data/YYYY/Qn/` 根；任务 README 在 `flow/data/YYYY/Qn/MM/<dir>/` 视角下，
-  // 相对路径需 `../` 前缀才能 Obsidian wikilink 解析。vault 根不放 capture 月度文件
-  // （保持"日期为存储主轴"单一真源），所以不能省略 `../`。
+  // `flow/data/YYYY/Qn/` 根；任务 README 在 `flow/data/YYYY/Qn/MM/<dir>/README.md`，
+  // 要上溯两级（`../../`）才到季目录。vault 根不放 capture 月度文件
+  // （保持"日期为存储主轴"单一真源），所以不能省略前缀。
   const sourceLink = buildSourceLink(sourceFile, sourceAnchor);
   const domainField = domain ? `domain: ${domain}\n` : "";
-  // 正文导航行（capture 时快照，task-edit 换域/改主题不重渲染，与旧 domainLine 语义一致）：
-  // 领域链规则库规约入口（domains/<域>/CLAUDE.md 自带入口说明 + 规则索引 + workflow 约束），
-  // 主题链主题卡（topics/<id>，dataviewjs 反向聚合任务）。静态 wikilink，规则/主题增删不破链接；
-  // HTML 哨兵明示渲染产物防 reformat 当复述删，主题行续在同一引用块内、不另起哨兵。
+  // 正文导航行（capture 时快照，task-edit 换域不重渲染，与旧 domainLine 语义一致）：
+  // 领域链规则库规约入口（domains/<域>/CLAUDE.md 自带入口说明 + 规则索引 + workflow 约束）。
+  // 静态 wikilink，规则增删不破链接；HTML 哨兵明示渲染产物防 reformat 当复述删。
+  // （原主题导航行 `> **主题：**` 随 2026-11-23 砍 topic 删除。）
   const meta = await domainMeta(vault, domain);
   const domainLine = domain
     ? `<!-- _task.js render: nav line — 不要手改 -->\n> **领域：** [[${DOMAINS_ROOT}/${domain}/CLAUDE|${meta.label} 规则库]]\n`
     : "";
-  const topicField = topic
-    ? `topic: ${JSON.stringify(String(topic).trim())}\n`
-    : "";
-  const topicLine = topic
-    ? `> **主题：** [[flow/data/topics/${topic}|${topic}]]\n`
-    : "";
-  // frontmatter 只留机器真源：type / source / domain / milestones（+ 可选 topic）。
+  // frontmatter 只留机器真源：type / source / domain / milestones。
   // tags / kind / code_locs / refs 全是派生量或零读者的派生副本，2026-11-16 删除；
   // created 已由 milestones 首条 create 承载。
   const frontmatter = [
@@ -366,14 +360,12 @@ async function buildFolderReadme({ vault, title, created, sourceFile, sourceAnch
     domainField.replace(/\n$/, ""),
     "milestones:",
     `  - {date: '${created}', type: create}`,
-    topicField.replace(/\n$/, ""),
     "---",
   ].filter((l) => l !== "").join("\n");
   const body = renderTemplate(await readTemplate(vault, "folder-readme.md", domain), {
     TITLE: title,
     SOURCE_LINK: sourceLink,
     DOMAIN_LINE: domainLine,
-    TOPIC_LINE: topicLine,
     CODE_LOC_BLOCK: codeLocsBlock(meta.work, false),
     REF_BLOCK: refsBlock(meta.work, false),
     CREATED: created,

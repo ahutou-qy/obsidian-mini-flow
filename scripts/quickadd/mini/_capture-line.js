@@ -77,7 +77,7 @@ function parseCaptureLine(line, sourceFile) {
     status,                 // active/finish（历史别名已在 STATUS_ALIAS 归一），老行可能为空
     completion,
     doneLegacy,             // 老 checkbox 行的勾选态
-    // 行内 #yunxiao：云效物化项，Home「🏠 工作事务」活跃卡滤掉它（它归「📋 云效工作项」卡）。
+    // 行内 #yunxiao：云效物化项，Home「🏠 事务」活跃卡滤掉它（它归「📋 云效工作项」卡）。
     // 状态标签正则只认状态字典，#yunxiao 不是状态 → 单独给一个布尔位，别让消费方各自翻正文。
     yunxiao: /#yunxiao\b/.test(body),
   };
@@ -312,6 +312,14 @@ async function resolveCaptureFromSource(app, taskFile, taskHelpers) {
   return resolveByBacklink(app, taskFile);
 }
 
+// source 里存的是**相对任务 README** 的链接名，这里要的是**季目录下的文件名**。
+// 剥掉前导 `../`（一级 / 两级 / 多级都收），裸名原样返回。抽成纯函数便于单测。
+// 2026-11-22：不剥的话 `${quarterFolder}/${ideaBase}` 会拼出 `Qn/../../ideas-…`，
+// getAbstractFileByPath 永远取不到 → 路径 1 静默失效、只剩路径 2 反查兜底。
+function ideaBaseName(ideaBase) {
+  return String(ideaBase || "").replace(/^(?:\.\.\/)+/, "");
+}
+
 // 路径 1：读任务文件 frontmatter source 的锚点，直接定位月度行。
 async function resolveBySourceField(app, taskFile, taskHelpers) {
   const vault = app.vault;
@@ -322,8 +330,13 @@ async function resolveBySourceField(app, taskFile, taskHelpers) {
   const [, ideaBase, anchor] = m;
   if (!anchor) return null;
 
+  // source 里存的是**相对任务 README** 的链接（`../../ideas-YYYY-MM`，历史任务可能是
+  // 一级 `../` 或裸名）。这里要的是相对 vault 根的路径，而 inferQuarterFolder 已经给到
+  // 季目录——所以先把前导 `../` 剥掉再拼，否则拼出 `Qn/../../ideas-…` 永远取不到文件，
+  // 路径 1 静默失效、只能靠路径 2 反查兜底（2026-11-22 修）。reader-side wide：三种历史形态都收。
+  const ideaName = ideaBaseName(ideaBase);
   const quarterFolder = taskHelpers.inferQuarterFolder(taskFile.path);
-  const capturePath = `${quarterFolder}/${ideaBase.endsWith(".md") ? ideaBase : ideaBase + ".md"}`;
+  const capturePath = `${quarterFolder}/${ideaName.endsWith(".md") ? ideaName : ideaName + ".md"}`;
   const captureFile = vault.getAbstractFileByPath(capturePath);
   if (!captureFile || captureFile.children) return null;
 
@@ -389,6 +402,7 @@ module.exports = {
   domainOf,
   demoteCaptureLink,
   taskNameFromTarget,
+  ideaBaseName,
   // 运行时
   listDir,
   listMonthFiles,

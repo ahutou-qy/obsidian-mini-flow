@@ -5,7 +5,7 @@
 // `flow/scripts/quickadd/mini/_launch-claude.js#launchClaude({ app, vaultPath })`。
 //
 // 为什么拆出去：启动逻辑有两个调用方——本宏（从**当前打开的笔记**起会话）与
-// miniflow 插件的 `api.launchClaude(path)`（Home「🏠 工作事务」活跃卡的行内 ▶
+// miniflow 插件的 `api.launchClaude(path)`（Home「🏠 事务」活跃卡的行内 ▶
 // 按钮，从**点中的那条任务**起会话）。原先实现只认活动笔记，在 Home.md 上按 pageHeader
 // 那颗按钮时 cwd 落 vault 根、不是任务目录。抽出后两者共用一份实现，行为对本宏不变。
 //

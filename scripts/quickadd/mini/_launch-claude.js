@@ -3,7 +3,7 @@
 //
 // 两个调用方共用这一份，不许各写一套：
 //   - QuickAdd 宏「Open Claude」→ open-claude.js（薄壳，只负责取**活动笔记**的路径）
-//   - miniflow 插件 `api.launchClaude(vaultPath)` → Home「🏠 工作事务」行内 ▶ 按钮
+//   - miniflow 插件 `api.launchClaude(vaultPath)` → Home「🏠 事务」行内 ▶ 按钮
 //     （按钮传的是**点中那条任务**的路径）
 //
 // 为什么抽：open-claude.js 原先读 `app.workspace.activeEditor` 的文件，在 Home.md 上按
@@ -40,9 +40,11 @@
 // - **本模块不碰 Notice / obsidian**：QuickAdd 沙盒与插件字符串加载两个上下文里
 //   `Notice` 的可见性不一样，错误一律以抛出形态交回调用方，由它各自提示（文案单源在
 //   插件的 launchClaude 与 open-claude.js 的 reportFail 两处，都是短句）。
-// - 总开新 tab/窗口，不探测该任务是否已有 claude 在跑。两条会话各写独立 jsonl
-//   （不写坏），但两个 agent 同改一棵树，撞「工作目录互斥」——靠人别在任务会话还开着
-//   时重复打开。
+// - 总开新 tab/窗口，**启动器本身**不探测该任务是否已有 claude 在跑。两条会话各写独立
+//   jsonl（不写坏），但两个 agent 同改一棵树，撞「工作目录互斥」——所以 2026-11-23 起
+//   **Home「🏠 事务」卡**加了一颗会话状态徽标（读本机会话注册表，判据在
+//   `_session-probe.js`），「已有会话在跑」这件事在卡面上可见了；启动器仍总开新 tab
+//   （人点了就是要开新会话），不在这里拦。
 // - 新 tab 被选中、终端抢到前台（分屏同样如此）；来源笔记与 claude 会话不能同屏对照。
 // - macOS：同 bundle id 存在多个 iTerm 实例时，AppleScript 会路由到无窗的旧实例，count
 //   of windows 误判为 0 而退化成建窗——这不是脚本能在脚本内修的，需清掉残留 iTerm 进程
@@ -59,9 +61,13 @@ const nodeRequire =
     ? window.require
     : null;
 
-// 权限模式：与机器级 zc / cc 共用 ZC_PERMISSION_MODE，默认 auto（2026-10-22 定）。
-// auto 的分类器在本机偶发客户端墙钟超时（规则+会话上下文太大），被拒时重试通常就过；
-// 要临时切回逐条审批就设 ZC_PERMISSION_MODE=manual。default 是 manual 的旧名，归一后等价。
+// 权限模式：与机器级 zc / cc 共用 ZC_PERMISSION_MODE，默认 auto。
+// auto 在第三方端点上能不能用，取决于 CLAUDE_CODE_AUTO_MODE_SERVER：置 0 时判定改走本地
+// 分类器（role=arbiterWithLocalFallback），不再向服务端发那个请求；不置则走服务端判定，
+// 而第三方 relay 转发不了它，每个动作都降级人工审批并弹「auto mode can't check actions」。
+// 两端 cc-switch 通用配置都已置 0（mac 2026-11-22 落，Windows 更早），所以这里默认 auto。
+// 换到没置 0 的机器上要么补该 env，要么设 ZC_PERMISSION_MODE=default 退回逐条审批。
+// default 归一成 manual：CLI 的 Ck() 把 manual 映射回 default，两者等价。
 // 取值走白名单——macOS 分支要把它拼进 shell 命令串，不能让环境变量带任意字符进来。
 const PERM_MODES = ["manual", "default", "acceptEdits", "dontAsk", "plan", "auto"];
 
@@ -220,7 +226,7 @@ end tell`;
 //    也查不到该文件），必须经 cmd 的 `start`（走 ShellExecute）才拉得起来。所以探测 wt
 //    存在性只能问 `where.exe`。
 // ② 内部命令必须拆成独立 argv 传给 start，不能整条塞进一个带空格的字符串——那样经 start
-//    传递会整条丢失（实测新窗口起来但命令没执行）。拆开后 `--permission-mode auto` 不会被
+//    传递会整条丢失（实测新窗口起来但命令没执行）。拆开后 `--permission-mode <mode>` 不会被
 //    wt 当自己的选项吞掉（实测透传正确）；反过来加 `--` 分隔符会让整条命令失效，别加。
 function launchOnWindows({ execFile, opts, cwd, sessionName }) {
   return new Promise((resolve, reject) => {

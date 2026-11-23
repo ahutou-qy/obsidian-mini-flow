@@ -163,8 +163,8 @@ body.theme-dark .miniflow-home .callout[data-callout="cols"] > .callout-content 
   display: none;
 }
 
-/* ===== 卡内统一档（2026-11-19）：首行五张卡（🏠 工作事务 / 📋 云效 / 💡 闪念 /
-   ⏳ 规则待复盘 / 🔗 溯源链）的**文字与图标档位单源**。改档位只改这一段。
+/* ===== 卡内统一档（2026-11-19；2026-11-23 加第六张 🐞 预识别缺陷）：首行六张卡的
+   **文字与图标档位单源**。改档位只改这一段。
 
    为什么收成一段：五张卡分四轮长出来、每轮各写一段专用 CSS，卡级当时只统一了
    ul/li/h3；后来的云效桶头（strong）、溯源链小标题（h4）、各卡卡尾灰字都绕过那三项
@@ -188,11 +188,12 @@ body.theme-dark .miniflow-home .callout[data-callout="cols"] > .callout-content 
 }
 .miniflow-home .callout[data-callout="cols"] .callout-content h3:first-child { margin-top: 0; }
 
-/* 档 2 · 条目：正文吃卡级 1em，**任务/规则名链接加粗**。工作事务卡的标题本就是
+/* 档 2 · 条目：正文吃卡级 1em，**任务/规则名链接加粗**。事务卡的标题本就是
    `**[[...]]**`，另外三卡靠这条对齐。闪念刻意不在选择器里——它是自由文本、不是任务标题。 */
 .miniflow-home .miniflow-proposed .miniflow-proposed-list li > a,
 .miniflow-home .miniflow-yunxiao li a.internal-link,
-.miniflow-home .miniflow-trace li > a {
+.miniflow-home .miniflow-trace li > a,
+.miniflow-home .miniflow-defect li > a {
   font-weight: var(--bold-weight, 700);
 }
 
@@ -203,6 +204,7 @@ body.theme-dark .miniflow-home .callout[data-callout="cols"] > .callout-content 
 .miniflow-home .miniflow-ideas .miniflow-ideas-empty,
 .miniflow-home .miniflow-trace .miniflow-trace-empty,
 .miniflow-home .miniflow-trace .miniflow-trace-cov,
+.miniflow-home .miniflow-defect .miniflow-defect-empty,
 .miniflow-home .miniflow-yunxiao details > summary,
 .miniflow-home .miniflow-trace details > summary {
   font-size: 0.92em;
@@ -213,7 +215,7 @@ body.theme-dark .miniflow-home .callout[data-callout="cols"] > .callout-content 
   cursor: pointer;
 }
 
-/* 档 4 · 卡尾提示：三处「共 N 条 · 显示最新 M 条」+ 工作事务兜底差集行 + 溯源链中心表链接。
+/* 档 4 · 卡尾提示：三处「共 N 条 · 显示最新 M 条」+ 事务兜底差集行 + 溯源链中心表链接。
    各自的 margin/padding 留在专用段（那是节奏不是档位）。 */
 .miniflow-home .miniflow-ideas .miniflow-ideas-more,
 .miniflow-home .miniflow-proposed .miniflow-proposed-more,
@@ -226,16 +228,20 @@ body.theme-dark .miniflow-home .callout[data-callout="cols"] > .callout-content 
 /* 档 5 · 动作按钮：emoji 字形、0.95em、裸字无边框透明底、hover 淡底。
    **显形策略两档，形态其余全同**：
    - 闪念三键（📋 📌 🗑）hover/focus 才显形——每行三颗，常驻会成按钮墙；
-   - 工作事务的 ▶️ **常驻淡显**（.55 → hover/focus 1）——每行只一颗，且它是「在任务目录
+   - 事务的 ▶️ **常驻淡显**（.55 → hover/focus 1）——每行只一颗，且它是「在任务目录
      起 claude 会话」这个功能的唯一入口，藏起来等于没有（2026-11-19 面板定的折中）。
    键盘 Tab 到也显形（:focus），不只靠鼠标。
    2026-11-20 起云效卡的 ▶️ 走同一档（常驻淡显）——那是同一功能的第二个入口，
-   显形策略跟着工作事务卡那颗走，别单独另定一档。 */
+   显形策略跟着事务卡那颗走，别单独另定一档。
+   2026-11-23 起事务卡的**会话状态徽标**（🟢/💤/⏳）**不进这一档**：它改成描边小标签
+   （chip），与预缺陷卡的风险徽标同款形态——chip 是「状态标记」不是「动作按钮」，
+   形态归属见下面「卡内 chip」段。 */
 .miniflow-home .miniflow-ideas .miniflow-idea-copy,
 .miniflow-home .miniflow-ideas .miniflow-idea-promote,
 .miniflow-home .miniflow-ideas .miniflow-idea-del,
 .miniflow-home .miniflow-active .miniflow-active-cc,
-.miniflow-home .miniflow-yunxiao .miniflow-yunxiao-cc {
+.miniflow-home .miniflow-yunxiao .miniflow-yunxiao-cc,
+.miniflow-home .miniflow-defect .miniflow-defect-cc {
   flex: 0 0 auto;
   border: none;
   background: transparent;
@@ -279,7 +285,53 @@ body.theme-dark .miniflow-home .callout[data-callout="cols"] > .callout-content 
   background: var(--background-modifier-hover);
   outline: none;
 }
-/* 云效卡的 ▶️（2026-11-20）：显形策略与工作事务那颗相同（常驻淡显 .55 → hover/focus 1）。
+/* ===== 卡内 chip · 描边小标签（2026-11-23）：预缺陷卡的风险徽标 + 事务卡的会话状态徽标。
+   形态数值（0.82em / 600 字重 / 1px 描边 / 0.3em 圆角 / 0 .35em 内边距）**两处共用这一份**，
+   别各写一遍（第二份实现必漂）；各卡只在自己的修饰类里写颜色。
+   与档 5（动作按钮）分开：chip 是**状态标记**，不是按钮——按钮是裸字无边框，chip 有描边。
+   颜色自带语义：**别压 --text-muted**（否则 P0 也灰掉、waiting 也看不出在等你）。
+   emoji 不吃 color（彩色字形自带颜色），所以语义主要由**边框色**承担，color 只兜底单色字形。 */
+.miniflow-home .miniflow-defect .miniflow-defect-risk,
+.miniflow-home .miniflow-active .miniflow-active-sess {
+  font-size: 0.82em;
+  font-weight: 600;
+  padding: 0 0.35em;
+  border-radius: 0.3em;
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-muted);
+  background: transparent;
+}
+/* 会话 chip 专属：可点（点开列会话），所以要清掉 button 的默认外观、给 cursor；
+   布局上固定不伸缩，emoji 垂直居中。 */
+.miniflow-home .miniflow-active .miniflow-active-sess {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.4;
+  min-width: 1.6em;
+  cursor: pointer;
+  transition: background 0.12s ease, opacity 0.12s ease;
+}
+/* 状态色（边框为主）：busy 在跑=绿 / idle 闲着=灰 / waiting 在等你输入或授权=橙。
+   --color-green 是三元组变量，用 rgb(var(--x, 兜底)) 写，主题没定义也不至于失效。 */
+.miniflow-home .miniflow-active .miniflow-active-sess-busy {
+  border-color: rgb(var(--color-green, 40, 160, 90));
+  color: rgb(var(--color-green, 40, 160, 90));
+}
+.miniflow-home .miniflow-active .miniflow-active-sess-idle {
+  border-color: var(--background-modifier-border);
+  color: var(--text-muted);
+}
+.miniflow-home .miniflow-active .miniflow-active-sess-waiting {
+  border-color: var(--text-warning);
+  color: var(--text-warning);
+}
+.miniflow-home .miniflow-active .miniflow-active-sess:hover {
+  background: var(--background-modifier-hover);
+  outline: none;
+}
+/* 云效卡的 ▶️（2026-11-20）：显形策略与事务那颗相同（常驻淡显 .55 → hover/focus 1）。
    云效条目是普通 li 文本流（不是 .miniflow-active-row 那种 flex 行），没有 align-self
    可用，所以补一条 vertical-align 让按钮跟行内文字基线对齐。
    line-height 取 1.4（档 5 那个 1.6 是给 flex 行里的按钮用的）：按钮是行内元素，
@@ -295,6 +347,50 @@ body.theme-dark .miniflow-home .callout[data-callout="cols"] > .callout-content 
   opacity: 1;
 }
 .miniflow-home .miniflow-yunxiao .miniflow-yunxiao-cc:hover {
+  background: var(--background-modifier-hover);
+  outline: none;
+}
+
+/* ===== 预缺陷卡（🐞 预识别缺陷，2026-11-23）：一行一条 = 风险徽标 + 标题链接 + 编号 + ▶️。
+   li 自己是 flex 行（同事务卡），标题长时在行内换行。档位全吃上面「卡内统一档」：
+   标题加粗=档 2、空态=档 3、按钮形态=档 5、列表缩进=档 6——本段只写卡片专用节奏。
+   风险徽标是唯一自带色值的元素：P0 红 / P1 橙 / P2·P3 灰（emoji 之外的分类标签，
+   与「风险分层表达」的排序一致；不压 --text-muted，否则 P0 也灰掉）。 ===== */
+.miniflow-home .miniflow-defect .miniflow-defect-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35em;
+}
+.miniflow-home .miniflow-defect .miniflow-defect-row > a {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.miniflow-home .miniflow-defect .miniflow-defect-risk {
+  flex: 0 0 auto;
+}
+.miniflow-home .miniflow-defect .miniflow-defect-risk-P0 {
+  color: var(--text-error);
+  border-color: var(--text-error);
+}
+.miniflow-home .miniflow-defect .miniflow-defect-risk-P1 {
+  color: var(--text-warning);
+  border-color: var(--text-warning);
+}
+.miniflow-home .miniflow-defect .miniflow-defect-id {
+  flex: 0 0 auto;
+  font-size: 0.82em;
+  color: var(--text-muted);
+}
+/* ▶️ 常驻淡显，策略与事务 / 云效那两颗一致（0.55 → hover/focus 1）。 */
+.miniflow-home .miniflow-defect .miniflow-defect-cc {
+  align-self: center;
+  opacity: 0.55;
+}
+.miniflow-home .miniflow-defect .miniflow-defect-row:hover .miniflow-defect-cc,
+.miniflow-home .miniflow-defect .miniflow-defect-cc:focus {
+  opacity: 1;
+}
+.miniflow-home .miniflow-defect .miniflow-defect-cc:hover {
   background: var(--background-modifier-hover);
   outline: none;
 }
@@ -317,11 +413,11 @@ body.theme-dark .miniflow-home .callout[data-callout="cols"] > .callout-content 
 }
 
 /* ===== 首行两栏卡（2026-11-18 布局；2026-11-19 删 ⛔ 外部依赖卡后重排，同日再互换
-   云效与闪念的位置）：左栏一张（🏠 工作事务），右栏上下四张（📋 云效工作项 / 💡 闪念 /
-   ⏳ 规则待复盘 / 🔗 溯源链）。
+   云效与闪念的位置）：左栏一张（🏠 事务），右栏上下五张（📋 云效工作项 / 💡 闪念 /
+   ⏳ 规则待复盘 / 🔗 溯源链 / 🐞 预识别缺陷）。
    [!cols] 的模型是「一个直接子 callout = 一栏」（flex），做不到一栏多行；这里把
-   **含 [!proposed] 卡的那个 cols** 改成两列网格，五张卡用显式 grid 位置摆：
-   tasks 占左列跨四行，yunxiao / idea / proposed / trace 依次占右列第 1/2/3/4 行。
+   **含 [!proposed] 卡的那个 cols** 改成两列网格，六张卡用显式 grid 位置摆：
+   tasks 占左列跨五行，yunxiao / idea / proposed / trace / defect 依次占右列第 1/2/3/4/5 行。
    右栏卡片高度不再靠网格拉伸填满：两张「条目可增减」的卡（闪念 / 待复盘）由插件
    api.fitHomeCards 按左栏总高分配预算、把条目补到填满（见 flow/CLAUDE.md「右栏
    「自适应填满」」段），云效 / 溯源链内容固定只占位。
@@ -330,7 +426,7 @@ body.theme-dark .miniflow-home .callout[data-callout="cols"] > .callout-content 
    extdep，那张一没整段选择器就失配、网格塌回 flex——trace 卡同理要有显式 grid-area，
    否则 auto-placement 会把它填进删卡腾出的空位、与 DOM 顺序错开。
    窄窗口退回块流（display:block；.callout-content 是 display:contents，子卡直接按
-   DOM 顺序上下排）：Home.md 里本块的 DOM 顺序刻意排成 工作事务 → 云效 → 闪念 →
+   DOM 顺序上下排）：Home.md 里本块的 DOM 顺序刻意排成 事务 → 云效 → 闪念 →
    规则待复盘 → 溯源链，正是窄屏想要的阅读顺序，不用 order 兜。
    阈值 52em 是视口宽度（CSS 拿不到容器宽），近似原 flex-wrap 的 2×18em 断点。 */
 .miniflow-home .callout[data-callout="cols"]:has(> .callout-content > .callout[data-callout="proposed"]) {
@@ -339,7 +435,7 @@ body.theme-dark .miniflow-home .callout[data-callout="cols"] > .callout-content 
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 .miniflow-home .callout[data-callout="cols"]:has(> .callout-content > .callout[data-callout="proposed"]) > .callout-content > .callout[data-callout="tasks"] {
-  grid-area: 1 / 1 / span 4 / span 1;
+  grid-area: 1 / 1 / span 5 / span 1;
 }
 .miniflow-home .callout[data-callout="cols"]:has(> .callout-content > .callout[data-callout="proposed"]) > .callout-content > .callout[data-callout="idea"] {
   grid-area: 2 / 2;
@@ -353,13 +449,31 @@ body.theme-dark .miniflow-home .callout[data-callout="cols"] > .callout-content 
 .miniflow-home .callout[data-callout="cols"]:has(> .callout-content > .callout[data-callout="proposed"]) > .callout-content > .callout[data-callout="trace"] {
   grid-area: 4 / 2;
 }
+/* 预缺陷卡（2026-11-23）：右列第 5 行。左栏 tasks 的 span 同步改成 5——**两处一起改**，
+   漏改左栏会让第 5 行只剩右栏一张卡、左栏下方空一整行。 */
+.miniflow-home .callout[data-callout="cols"]:has(> .callout-content > .callout[data-callout="proposed"]) > .callout-content > .callout[data-callout="defect"] {
+  grid-area: 5 / 2;
+}
+
+/* mac 版 Home（.miniflow-home-mac，2026-11-23 · 2.4b）：右栏比 Windows 少「🔗 溯源链」一张卡
+   （mac 无溯源链脚本 / trace-chain.json），右栏剩 云效 / 闪念 / 待复盘 / 预缺陷 四张、占第 1/2/3/4 行。
+   左栏 tasks 的跨行数同步收成 4；预缺陷从 Windows 的第 5 行上提到第 4 行（溯源链空出的位）——
+   不收/不挪则多出的第 5 行只有左栏卡片经过、右栏空一整截（「自适应填满」塌陷）。
+   仅命中带 .miniflow-home-mac 的页（mac Home 专属），Windows 页不带该类、渲染不变。
+   改 mac Home 卡集 → 同步改这里的 span 行数与 defect 行号。 */
+.miniflow-home-mac .callout[data-callout="cols"]:has(> .callout-content > .callout[data-callout="proposed"]) > .callout-content > .callout[data-callout="tasks"] {
+  grid-area: 1 / 1 / span 4 / span 1;
+}
+.miniflow-home-mac .callout[data-callout="cols"]:has(> .callout-content > .callout[data-callout="proposed"]) > .callout-content > .callout[data-callout="defect"] {
+  grid-area: 4 / 2;
+}
 @media (max-width: 52em) {
   .miniflow-home .callout[data-callout="cols"]:has(> .callout-content > .callout[data-callout="proposed"]) {
     display: block;
   }
 }
 
-/* 🏠 工作事务卡里的「外部依赖待解」呈现（2026-11-19 并入本卡，原独立 ⛔ 卡已删）：
+/* 🏠 事务卡里的「外部依赖待解」呈现（2026-11-19 并入本卡，原独立 ⛔ 卡已删）：
    - .miniflow-active-dep：任务行下的灰色副行，**完整显示** dep 文案（缺什么、找谁、期望何时）。
      文案 30–40 字，藏进 hover 就丢了「找谁」这个 payload，所以不省略、不截断。
    - .miniflow-active-dep-outside：卡尾兜底差集提示（有 dep 却不在活跃集合里的条数）。
@@ -374,12 +488,13 @@ body.theme-dark .miniflow-home .callout[data-callout="cols"] > .callout-content 
   margin-top: 0.4em;
 }
 
-/* 🏠 工作事务卡任务行尾的 ▶️ 按钮（2026-11-19）：在该任务目录起一个全新 claude 会话。
+/* 🏠 事务卡任务行尾的 ▶️ 按钮（2026-11-19）：在该任务目录起一个全新 claude 会话。
    - .miniflow-active-row / .miniflow-active-body：Home.md 的 render() 把 renderMarkdown 的
      异步填充关进 body，▶️ 与 dep 副行、子列表作为兄弟节点挂 row/li —— 顺序因此确定
      （标题行 → 副行 → 子列表），不依赖 renderMarkdown 的填充时机。
-   - body 用 flex: 0 1 auto：按钮紧跟标题**后方**（本需求的字面位置），标题过长时收缩换行
-     （min-width: 0 是 flex 子项收缩的前提），不把按钮顶到行外。
+   - body 用 flex: 0 1 auto：min-width: 0 是 flex 子项收缩的前提。**2026-11-23 起标题过长
+     不再换行而是出省略号**（见下面「任务标题不跨行」段），行内顺序是
+     **标题 → ▶️ → 会话 chip**（会话 chip 在最后方，按钮不再收尾）。
    - 按钮形态（emoji / 0.95em / 无边框 / 常驻淡显 .55→1）在「卡内统一档」档 5，与闪念三键
      同款；本段不再写第二份。 */
 .miniflow-home .miniflow-active .miniflow-active-row {
@@ -390,6 +505,25 @@ body.theme-dark .miniflow-home .callout[data-callout="cols"] > .callout-content 
 .miniflow-home .miniflow-active .miniflow-active-body {
   flex: 0 1 auto;
   min-width: 0;
+}
+/* 任务标题不跨行（2026-11-23）：body 与其直接子级 p 都改成 flex 容器——
+   renderMarkdown 的输出是 `<p>前缀 <a>标题</a> ⛔</p>`，链前缀（第 N/M 步 ·）与 ⛔
+   标记成为独立 flex item（**永不变行**），链接 a 作为可收缩 item、超长出省略号。
+   **DOM 归属不变**（⛔ 仍在 body 内）：另一个任务的验证脚本断言的是 body.textContent
+   含 ⛔，改 DOM 归属就得动它。标题被截断后看全文靠 hover（li.title）。 */
+.miniflow-home .miniflow-active .miniflow-active-body,
+.miniflow-home .miniflow-active .miniflow-active-body > p {
+  display: flex;
+  align-items: baseline;
+  gap: 0.2em;
+  min-width: 0;
+}
+.miniflow-home .miniflow-active .miniflow-active-body a {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 云效工作项分桶：
@@ -416,7 +550,7 @@ body.theme-dark .miniflow-home .callout[data-callout="cols"] > .callout-content 
 
 /* ⏳ 规则待复盘卡（Home 首行右栏第四张卡，dataviewjs 块）：
    列表形式（规则名 + 领域），显示条数按卡片的可用高度**自适应**（插件 api.fitHomeCards：
-   按左栏工作事务卡的总高给右栏分配预算，条数不足时卡尾给一行灰字提示
+   按左栏事务卡的总高给右栏分配预算，条数不足时卡尾给一行灰字提示
    「共 N 条 · 显示最新 M 条」）——**没有展开开关**，全量去源文件看。
    下方只调列表项的换行与间距。 */
 .miniflow-home .miniflow-proposed .miniflow-proposed-list li {
